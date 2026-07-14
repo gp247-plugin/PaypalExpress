@@ -103,9 +103,10 @@ class AppConfig extends ExtensionConfigDefault
             }
  
             
-            // Insert menu
+            // Insert menu (skip if already present - insertOrIgnore only dedupes
+            // on a DB unique constraint, which this table doesn't have on uri)
             $checkIdBlockPayment = AdminMenu::where('key', 'ADMIN_SHOP_PAYMENT')->first();
-            if ($checkIdBlockPayment) {
+            if ($checkIdBlockPayment && !AdminMenu::where('uri', 'admin::paypal-express')->exists()) {
                 $menu = [
                     [
                         'parent_id' => $checkIdBlockPayment->id,
@@ -144,7 +145,7 @@ class AppConfig extends ExtensionConfigDefault
         }
 
         //Delete menu
-        AdminMenu::where('uri', 'admin::paypal')->delete();
+        AdminMenu::where('uri', 'admin::paypal-express')->delete();
 
         return $return;
     }
