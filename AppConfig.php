@@ -202,7 +202,7 @@ class AppConfig extends ExtensionConfigDefault
     
     public function clickApp()
     {
-        return redirect(gp247_route_admin('admin_paypal.index'));
+        return redirect(gp247_route_admin('admin_paypal-express.index'));
     }
 
     /**

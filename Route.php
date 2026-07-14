@@ -31,10 +31,9 @@ if(gp247_extension_check_active($config['configGroup'], $config['configKey'])) {
         [
             'prefix' => GP247_ADMIN_PREFIX.'/paypal-express',
             'middleware' => GP247_ADMIN_MIDDLEWARE,
-            'namespace' => '\App\GP247\Plugins\PaypalExpress\Admin',
-        ], 
+        ],
         function () {
-            Route::get('/', 'AdminController@index')
+            Route::get('/', \App\GP247\Plugins\PaypalExpress\Livewire\AdminLivewire::class)
             ->name('admin_paypal-express.index');
         }
     );
