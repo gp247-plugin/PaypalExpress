@@ -7,12 +7,12 @@ PaypalExpress là một plugin cung cấp tính năng thanh toán thông qua Pay
 ## Thông tin cơ bản
 
 - **Tên plugin**: PaypalExpress
-- **Phiên bản**: 1.0.0
+- **Phiên bản**: 2.0
 - **Nhà phát triển**: GP247
 - **Email hỗ trợ**: support@gp247.net
 - **Liên kết**: https://github.com/gp247net/PaypalExpress
 - **Yêu cầu hệ thống**: 
-  - Core GP247 phiên bản 1.1 trở lên
+  - Core GP247 phiên bản 2.0 trở lên
   - Package gp247/shop
 
 ## Tính năng chính
@@ -111,3 +111,12 @@ Nếu bạn cần hỗ trợ hoặc có câu hỏi về plugin PaypalExpress, vu
 ## Giấy phép
 
 Plugin PaypalExpress được phát triển bởi GP247 và được phân phối theo giấy phép tương ứng. 
+
+## Changelog
+
+### Version 2.0
+- Xây dựng lại màn hình cấu hình admin bằng TailAdmin/Livewire (yêu cầu GP247 Core 2.0); trạng thái đơn hàng/thanh toán cho sự kiện thành công và hoàn tiền giờ được chọn qua dropdown, vẫn lưu vào đúng các dòng `admin_config` như trước nên giá trị đã cấu hình được giữ nguyên khi nâng cấp
+- Sửa lỗi có sẵn từ trước: mục "Paypal Express" trong nhóm Payment method ở sidebar admin có thể bị nhân đôi khi cài đặt và không bao giờ bị xóa khi gỡ cài đặt (do sai URI menu)
+
+### Version 1.0.0
+- Phát hành lần đầu

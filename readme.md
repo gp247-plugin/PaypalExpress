@@ -7,12 +7,12 @@ PaypalExpress is a plugin that provides PayPal payment functionality for GP247/S
 ## Basic Information
 
 - **Plugin Name**: PaypalExpress
-- **Version**: 1.0.0
+- **Version**: 2.0
 - **Developer**: GP247
 - **Support Email**: support@gp247.net
 - **Link**: https://github.com/gp247net/PaypalExpress
 - **System Requirements**: 
-  - GP247 Core version 1.1 or higher
+  - GP247 Core version 2.0 or higher
   - Package gp247/shop
 
 ## Key Features
@@ -111,3 +111,12 @@ If you need support or have questions about the PaypalExpress plugin, please con
 ## License
 
 The PaypalExpress plugin is developed by GP247 and distributed under the appropriate license.
+
+## Changelog
+
+### Version 2.0
+- Admin configuration screen rebuilt on TailAdmin/Livewire (requires GP247 Core 2.0); order/payment status for success and refund events are now edited as dropdowns, backed by the same `admin_config` rows as before, so already-configured values carry over on upgrade
+- Fixed a pre-existing bug where the "Paypal Express" entry under Payment method in the admin sidebar could be duplicated on install and was never removed on uninstall (wrong menu URI)
+
+### Version 1.0.0
+- Initial release
