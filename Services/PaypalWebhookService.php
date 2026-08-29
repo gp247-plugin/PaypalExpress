@@ -120,10 +120,20 @@ class PaypalWebhookService
             $order = \GP247\Shop\Models\ShopOrder::where('transaction', $captureId)->first();
             
             if ($order) {
-                // Update order status
+                // WHY record the refunded AMOUNT: flipping the whole order to "refunded"
+                // was wrong for any partial refund — returning 10% marked the order fully
+                // refunded and the figure itself was stored nowhere. The ledger holds the
+                // real amount and the payment status follows the money that is left
+                // (ADR shop_order-payment-ledger; F13).
+                $refunded = (float) $amount;
+                $refundId = $payload['resource']['id'] ?? null;
+                if ($refunded > 0) {
+                    $order->recordRefund($refunded, 'PaypalExpress', $refundId, null, 'PayPal refund ' . $currency);
+                }
+
+                // Only the ORDER status comes from config now; payment status is derived.
                 $order->update([
                     'status' => gp247_config('Paypal_order_status_refunded'),
-                    'payment_status' => gp247_config('Paypal_payment_status_refunded')
                 ]);
                 
                 // Add order history

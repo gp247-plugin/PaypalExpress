@@ -159,12 +159,47 @@ class FrontController extends RootFrontController
                 //Destroy session
                 session()->forget('paypalToken');
 
-                $transaction = $result['purchase_units'][0]['payments']['captures'][0]['id'] ?? null; 
-                // Update order status
+                $capture = $result['purchase_units'][0]['payments']['captures'][0] ?? [];
+                $transaction = $capture['id'] ?? null;
+                $captured = (float) ($capture['amount']['value'] ?? 0);
+                $capturedCurrency = (string) ($capture['amount']['currency_code'] ?? '');
+
+                // WHY record the money and not just a status: until now a successful
+                // capture only set flags, so an order that had genuinely been paid still
+                // carried received = 0 — it never entered revenue and stayed on the debt
+                // list while its label read "paid". recordPayment() is the platform seam
+                // and is idempotent on the capture id, so a replayed callback cannot
+                // double-count (ADR shop_order-payment-ledger, NFR-SEC-payment-idempotency).
+                $matchesOrder = $captured > 0
+                    && abs($captured - (float) $order->total) < 0.01
+                    && ($capturedCurrency === '' || $capturedCurrency === (string) $order->currency);
+
+                if ($captured > 0) {
+                    // Record what PayPal ACTUALLY took, never the order total "to make it
+                    // match": an amount or currency that disagrees with the order is a
+                    // reconciliation problem, and overwriting it would hide the problem
+                    // rather than surface it (F14).
+                    $order->recordPayment(
+                        $captured,
+                        $this->plugin->configKey,
+                        $transaction,
+                        null,
+                        $matchesOrder ? null : 'PayPal captured ' . $captured . ' ' . $capturedCurrency
+                            . ' but the order is ' . $order->total . ' ' . $order->currency
+                    );
+
+                    if (!$matchesOrder) {
+                        gp247_report('PayPal capture amount/currency differs from order ' . $orderID
+                            . ': captured ' . $captured . ' ' . $capturedCurrency
+                            . ', order ' . $order->total . ' ' . $order->currency);
+                    }
+                }
+
+                // `payment_status` is no longer taken from config: it is derived from the
+                // money in the ledger, so a short capture cannot present itself as paid.
                 $order->update([
                     'transaction' => $transaction,
                     'status' => gp247_config($this->plugin->configKey.'_order_status_success'),
-                    'payment_status' => gp247_config($this->plugin->configKey.'_payment_status_success')
                 ]);
 
                 //Add history
