@@ -7,9 +7,10 @@
     "configGroup": "Plugins",
     "configCode": "Payment",
     "configKey": "PaypalExpress",
-    "version": "3.0",
+    "version": "3.1",
     "requireCore": ["3.0"],
-    "requireUpdateFrom": "2.1",
+    "requireUpdateFrom": "3.1",
     "requireComposerPackages": ["gp247/shop"],
-    "requireGp247Extensions": []
+    "requireGp247Extensions": [],
+    "storeScope": "platform"
 }

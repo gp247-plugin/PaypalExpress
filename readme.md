@@ -7,12 +7,12 @@ PaypalExpress is a plugin that provides PayPal payment functionality for GP247/S
 ## Basic Information
 
 - **Plugin Name**: PaypalExpress
-- **Version**: 2.0
+- **Version**: 3.1
 - **Developer**: GP247
 - **Support Email**: support@gp247.net
 - **Link**: https://github.com/gp247net/PaypalExpress
 - **System Requirements**: 
-  - GP247 Core version 2.0 or higher
+  - GP247 Core version 3.0.3 or higher (needs per-store config + at-rest secret encryption)
   - Package gp247/shop
 
 ## Key Features
@@ -52,26 +52,21 @@ After installation, activate the plugin in the plugin management section.
 
 ### Configuration
 
-To use the plugin, you need to configure the following information in your `.env` file:
+**From version 3.1**, PayPal credentials are configured **entirely** in **Admin -> Plugins -> Paypal Express**, **per store**, and the client secrets are **encrypted at rest** (`enc:v2:...`). **The database is the single runtime source of configuration — `.env` is no longer read.** On a multi-store site the site owner sets a PayPal account per store; on a marketplace the platform owner sets one account and stores inherit it. Only the site/marketplace owner can open this screen (store-admins/vendors are blocked). The fields: Sandbox mode, Client ID/Secret (Sandbox), Client ID/Secret (Live), Webhook ID.
+
+The post-payment redirect URL (`return_url`) and cancel URL (`cancel_url`) **need no configuration** — the plugin derives them from its route and the current store's domain.
+
+> **Legacy `.env` (no longer read at runtime):** the `PAYPAL_*` variables below are **not consulted at runtime**. When upgrading to 3.1, if a legacy site still has them in `.env`, the plugin **imports them once** into the database (client secrets encrypted) so nothing is lost, then uses the database only. `.env` is left intact but can be removed afterwards. (A site running `php artisan config:cache` cannot auto-import — re-enter the values directly in the admin screen.)
 
 ```
+# Legacy — one-time migration on upgrade only, not used at runtime
 PAYPAL_SANDBOX=true
 PAYPAL_CLIENT_ID_SANDBOX=your_sandbox_client_id
 PAYPAL_CLIENT_SECRET_SANDBOX=your_sandbox_client_secret
 PAYPAL_CLIENT_ID_LIVE=your_live_client_id
 PAYPAL_CLIENT_SECRET_LIVE=your_live_client_secret
-PAYPAL_RETURN_URL=https://your-domain.com/plugin/paypal-express/capture-payment
-PAYPAL_CANCEL_URL=https://your-domain.com/plugin/paypal-express/cancel-payment
 PAYPAL_WEBHOOK_ID=your_webhook_id
 ```
-
-Where:
-- `PAYPAL_SANDBOX`: Set to `true` to use the sandbox environment, `false` to use the live environment.
-- `PAYPAL_CLIENT_ID_SANDBOX` and `PAYPAL_CLIENT_SECRET_SANDBOX`: Authentication credentials for the sandbox environment.
-- `PAYPAL_CLIENT_ID_LIVE` and `PAYPAL_CLIENT_SECRET_LIVE`: Authentication credentials for the live environment.
-- `PAYPAL_RETURN_URL`: URL to which PayPal will redirect after successful payment.
-- `PAYPAL_CANCEL_URL`: URL to which PayPal will redirect if the customer cancels the payment.
-- `PAYPAL_WEBHOOK_ID`: Webhook ID created in your PayPal Developer account.
 
 ### Currency Support
 
@@ -99,7 +94,7 @@ The plugin integrates PayPal webhook processing to automatically update order st
 https://your-domain.com/plugin/paypal-express/webhook
 ```
 
-You need to register this webhook in your PayPal Developer account and update the `PAYPAL_WEBHOOK_ID` in your `.env` file.
+You need to register this webhook in your PayPal Developer account and enter the **Webhook ID** in the plugin's admin configuration screen (per store).
 
 ## Support and Contact
 
@@ -113,6 +108,11 @@ If you need support or have questions about the PaypalExpress plugin, please con
 The PaypalExpress plugin is developed by GP247 and distributed under the appropriate license.
 
 ## Changelog
+
+### Version 3.1
+- PayPal credentials (client id/secret sandbox+live, webhook id, sandbox toggle) moved from `.env` into the admin config screen, **per store**, with client secrets **encrypted at rest** (`enc:v2:...`). `storeScope: platform` — only the site/marketplace owner configures; the root admin can set a PayPal account per store.
+- **The database is the single runtime source of configuration — `.env` is no longer read.** A legacy site's `.env` is **imported once** on upgrade (client secrets encrypted), then the database is used exclusively. `return_url`/`cancel_url` are no longer configured by hand; they are derived from the plugin route and the store's domain.
+- Requires GP247 Core 3.0.3+.
 
 ### Version 2.0
 - Admin configuration screen rebuilt on TailAdmin/Livewire (requires GP247 Core 2.0); order/payment status for success and refund events are now edited as dropdowns, backed by the same `admin_config` rows as before, so already-configured values carry over on upgrade

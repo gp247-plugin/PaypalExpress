@@ -7,12 +7,12 @@ PaypalExpress là một plugin cung cấp tính năng thanh toán thông qua Pay
 ## Thông tin cơ bản
 
 - **Tên plugin**: PaypalExpress
-- **Phiên bản**: 2.0
+- **Phiên bản**: 3.1
 - **Nhà phát triển**: GP247
 - **Email hỗ trợ**: support@gp247.net
 - **Liên kết**: https://github.com/gp247net/PaypalExpress
 - **Yêu cầu hệ thống**: 
-  - Core GP247 phiên bản 2.0 trở lên
+  - Core GP247 phiên bản 3.0.3 trở lên (cần cấu hình theo store + mã hoá bí mật at-rest)
   - Package gp247/shop
 
 ## Tính năng chính
@@ -52,26 +52,21 @@ Sau khi cài đặt, kích hoạt plugin trong phần quản lý plugin.
 
 ### Cấu hình
 
-Để sử dụng plugin, bạn cần cấu hình các thông tin sau trong file `.env`:
+**Từ phiên bản 3.1**, thông tin kết nối PayPal được cấu hình **hoàn toàn trong** **Admin -> Plugins -> Paypal Express**, **theo từng cửa hàng**, và các client secret được **mã hoá at-rest** (`enc:v2:...`). **Cơ sở dữ liệu là nguồn cấu hình duy nhất lúc chạy — không còn đọc `.env`.** Site nhiều cửa hàng: chủ site đặt tài khoản PayPal riêng cho từng store; sàn thương mại: chủ sàn đặt một tài khoản, các store kế thừa. Chỉ chủ site/chủ sàn mở được màn này (store-admin/vendor bị chặn). Các ô: Chế độ Sandbox, Client ID/Secret (Sandbox), Client ID/Secret (Live), Webhook ID.
+
+URL chuyển hướng sau thanh toán (`return_url`) và khi huỷ (`cancel_url`) **không cần cấu hình** — plugin tự sinh theo route và tên miền của cửa hàng đang thanh toán.
+
+> **Legacy `.env` (đã ngừng dùng lúc chạy):** các biến `PAYPAL_*` dưới đây **không còn được đọc khi vận hành**. Khi nâng cấp lên 3.1, nếu site cũ còn đặt chúng trong `.env`, plugin **tự nhập một lần** vào cơ sở dữ liệu (client secret được mã hoá) để không mất cấu hình, rồi từ đó chỉ dùng cơ sở dữ liệu. `.env` không bị xoá nhưng có thể bỏ đi sau khi đã nhập. (Site chạy `php artisan config:cache` sẽ không tự nhập được — hãy nhập lại trực tiếp trong màn admin.)
 
 ```
+# Legacy — chỉ để di trú một lần khi nâng cấp, không dùng lúc chạy
 PAYPAL_SANDBOX=true
 PAYPAL_CLIENT_ID_SANDBOX=your_sandbox_client_id
 PAYPAL_CLIENT_SECRET_SANDBOX=your_sandbox_client_secret
 PAYPAL_CLIENT_ID_LIVE=your_live_client_id
 PAYPAL_CLIENT_SECRET_LIVE=your_live_client_secret
-PAYPAL_RETURN_URL=https://your-domain.com/plugin/paypal-express/capture-payment
-PAYPAL_CANCEL_URL=https://your-domain.com/plugin/paypal-express/cancel-payment
 PAYPAL_WEBHOOK_ID=your_webhook_id
 ```
-
-Trong đó:
-- `PAYPAL_SANDBOX`: Đặt `true` để sử dụng môi trường thử nghiệm, `false` để sử dụng môi trường thực tế.
-- `PAYPAL_CLIENT_ID_SANDBOX` và `PAYPAL_CLIENT_SECRET_SANDBOX`: Thông tin xác thực cho môi trường thử nghiệm.
-- `PAYPAL_CLIENT_ID_LIVE` và `PAYPAL_CLIENT_SECRET_LIVE`: Thông tin xác thực cho môi trường thực tế.
-- `PAYPAL_RETURN_URL`: URL mà PayPal sẽ chuyển hướng sau khi thanh toán thành công.
-- `PAYPAL_CANCEL_URL`: URL mà PayPal sẽ chuyển hướng nếu khách hàng hủy thanh toán.
-- `PAYPAL_WEBHOOK_ID`: ID webhook được tạo trong tài khoản PayPal Developer.
 
 ### Hỗ trợ tiền tệ
 
@@ -99,7 +94,7 @@ Plugin tích hợp xử lý webhook từ PayPal để tự động cập nhật 
 https://your-domain.com/plugin/paypal-express/webhook
 ```
 
-Bạn cần đăng ký webhook này trong tài khoản PayPal Developer và cập nhật `PAYPAL_WEBHOOK_ID` trong file `.env`.
+Bạn cần đăng ký webhook này trong tài khoản PayPal Developer và nhập **Webhook ID** vào màn cấu hình plugin trong admin (theo cửa hàng).
 
 ## Hỗ trợ và liên hệ
 
@@ -113,6 +108,11 @@ Nếu bạn cần hỗ trợ hoặc có câu hỏi về plugin PaypalExpress, vu
 Plugin PaypalExpress được phát triển bởi GP247 và được phân phối theo giấy phép tương ứng. 
 
 ## Changelog
+
+### Version 3.1
+- Thông tin kết nối PayPal (client id/secret sandbox+live, webhook id, chế độ sandbox) chuyển từ `.env` vào màn cấu hình admin, **theo từng cửa hàng**, client secret được **mã hoá at-rest** (`enc:v2:...`). `storeScope: platform` — chỉ chủ site/chủ sàn cấu hình; root admin đặt tài khoản PayPal riêng cho từng store.
+- **Cơ sở dữ liệu là nguồn cấu hình duy nhất lúc chạy — ngừng đọc `.env`.** Site cũ còn `.env` được **tự nhập một lần** khi nâng cấp (client secret mã hoá) rồi từ đó chỉ dùng cơ sở dữ liệu. `return_url`/`cancel_url` không còn cấu hình tay, tự sinh theo route + tên miền cửa hàng.
+- Yêu cầu GP247 Core 3.0.3+.
 
 ### Version 2.0
 - Xây dựng lại màn hình cấu hình admin bằng TailAdmin/Livewire (yêu cầu GP247 Core 2.0); trạng thái đơn hàng/thanh toán cho sự kiện thành công và hoàn tiền giờ được chọn qua dropdown, vẫn lưu vào đúng các dòng `admin_config` như trước nên giá trị đã cấu hình được giữ nguyên khi nâng cấp

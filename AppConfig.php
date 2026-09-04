@@ -44,7 +44,10 @@ class AppConfig extends ExtensionConfigDefault
             //Check Plugin key exist
             $return = ['error' => 1, 'msg' =>  gp247_language_render('admin.extension.plugin_exist')];
         } else {
-            //Insert plugin to config
+            // Insert plugin to config. WHY: every row must carry the same column
+            // set — AdminConfig::insert() derives the column list from the first
+            // row, so the credential rows appended below (which add `security`)
+            // would otherwise mismatch. Keep `security => 0` on these base rows.
             $dataInsert = [
                 [
                     'group'  => $this->configGroup,
@@ -53,6 +56,7 @@ class AppConfig extends ExtensionConfigDefault
                     'sort'   => 0,
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => self::ON, //Enable extension
+                    'security' => 0,
                     'detail' => $this->appPath.'::lang.title',
                 ],
                 [
@@ -62,6 +66,7 @@ class AppConfig extends ExtensionConfigDefault
                     'sort'   => 0,
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 2, //Order sttus processing
+                    'security' => 0,
                     'detail' => $this->appPath.'::lang.order_status_success',
                 ],
                 [
@@ -71,6 +76,7 @@ class AppConfig extends ExtensionConfigDefault
                     'sort'   => 0,
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 7, //Order sttus refunded
+                    'security' => 0,
                     'detail' => $this->appPath.'::lang.order_status_refunded',
                 ],
                 [
@@ -80,6 +86,7 @@ class AppConfig extends ExtensionConfigDefault
                     'sort'   => 0,
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 3, //Order payment paid
+                    'security' => 0,
                     'detail' => $this->appPath.'::lang.payment_status_success',
                 ],
                 [
@@ -89,9 +96,17 @@ class AppConfig extends ExtensionConfigDefault
                     'sort'   => 0,
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 4, //Order payment refunded
+                    'security' => 0,
                     'detail' => $this->appPath.'::lang.payment_status_refunded',
                 ],
             ];
+
+            // Connection credentials (GLOBAL, empty by default; secrets flagged for
+            // at-rest encryption). Site owner enters them in admin; the update() hook
+            // imports any existing .env values on upgrade (ADR paypal-express_per-store-credentials).
+            foreach ($this->credentialSeed() as $row) {
+                $dataInsert[] = $row;
+            }
             try {
                 AdminConfig::insert(
                     $dataInsert
@@ -120,6 +135,104 @@ class AppConfig extends ExtensionConfigDefault
                 ];
                 AdminMenu::insertOrIgnore($menu);
             }
+        }
+
+        return $return;
+    }
+
+    /**
+     * The credential rows to seed at GLOBAL (empty; secrets flagged security = 1).
+     *
+     * @return array<int, array<string, mixed>>
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-per-store-credentials
+     * @aidlc-adr paypal-express_per-store-credentials
+     */
+    private function credentialSeed(): array
+    {
+        $keys = [
+            'sandbox' => ['default' => '1', 'secret' => false],
+            'client_id_sandbox' => ['default' => '', 'secret' => false],
+            'client_secret_sandbox' => ['default' => '', 'secret' => true],
+            'client_id_live' => ['default' => '', 'secret' => false],
+            'client_secret_live' => ['default' => '', 'secret' => true],
+            'webhook_id' => ['default' => '', 'secret' => false],
+        ];
+
+        $rows = [];
+        foreach ($keys as $key => $meta) {
+            $rows[] = [
+                'group'    => $this->configGroup,
+                'code'     => $this->configKey.'_config',
+                'key'      => $this->configKey.'_'.$key,
+                'sort'     => 0,
+                'store_id' => GP247_STORE_ID_GLOBAL,
+                'value'    => $meta['default'],
+                'security' => $meta['secret'] ? 1 : 0,
+                'detail'   => $this->appPath.'::lang.'.$key,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Upgrade hook: on installs made before 3.1 the credentials lived only in .env.
+     * Seed the credential rows if missing, then import any real value still set in .env
+     * into the GLOBAL row (secrets encrypted at rest via setConfigValue), so an existing
+     * site keeps working without re-entering credentials. From 3.1 the runtime no longer
+     * reads .env (config.php dropped env()), so this reads env() DIRECTLY rather than
+     * through config(). Idempotent: only fills a missing/empty row, never overwrites a
+     * value the admin already saved, and never deletes .env.
+     *
+     * Best-effort: env() returns nothing when the site runs `config:cache` (Laravel skips
+     * loading .env then); such a site re-enters credentials in admin. .env is left intact.
+     *
+     * @param string|null $fromVersion Version installed before this update.
+     * @return array{error:int,msg:string}
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-per-store-credentials
+     * @aidlc-adr paypal-express_per-store-credentials
+     */
+    public function update(?string $fromVersion = null)
+    {
+        try {
+            foreach ($this->credentialSeed() as $row) {
+                $existing = AdminConfig::where('group', $this->configGroup)
+                    ->where('key', $row['key'])
+                    ->where('store_id', GP247_STORE_ID_GLOBAL)
+                    ->first();
+
+                // Seed the row if a pre-3.1 install never had it.
+                if ($existing === null) {
+                    AdminConfig::insert($row);
+                    $existing = AdminConfig::where('group', $this->configGroup)
+                        ->where('key', $row['key'])
+                        ->where('store_id', GP247_STORE_ID_GLOBAL)
+                        ->first();
+                }
+
+                // Import from .env only when the DB row is still empty (never clobber a saved value).
+                if ($existing !== null && (string) $existing->getRawOriginal('value') === '') {
+                    $shortKey = substr($row['key'], strlen($this->configKey.'_'));
+                    $envValue = env('PAYPAL_'.strtoupper($shortKey));
+                    if ($envValue !== null && (string) $envValue !== '') {
+                        AdminConfig::setConfigValue(
+                            $this->configGroup,
+                            $row['key'],
+                            GP247_STORE_ID_GLOBAL,
+                            (string) $envValue,
+                            (int) $row['security']
+                        );
+                    }
+                }
+            }
+
+            $return = ['error' => 0, 'msg' => ''];
+        } catch (\Throwable $e) {
+            $return = ['error' => 1, 'msg' => $e->getMessage()];
         }
 
         return $return;

@@ -259,7 +259,7 @@ class FrontController extends RootFrontController
                 'event_body' => $request->getContent(),
                 'transmission_sig' => $transmissionSig,
                 'cert_url' => $certUrl,
-                'webhook_id' => config('Plugins/PaypalExpress.webhook_id')
+                'webhook_id' => paypalexpress_config('webhook_id')
             ];
             
             // Log verification data

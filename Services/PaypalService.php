@@ -15,13 +15,18 @@ class PaypalService
 
     public function __construct()
     {
-        if(config('Plugins/PaypalExpress.sandbox')){
-            $this->clientId = config('Plugins/PaypalExpress.client_id_sandbox');
-            $this->clientSecret = config('Plugins/PaypalExpress.client_secret_sandbox');
+        // WHY paypalexpress_config(): credentials are resolved per effective store
+        // (multi-store: the store's own PayPal account; marketplace: the platform's, via
+        // GLOBAL fallback), decrypted at read, with a .env fallback for pre-3.1 installs
+        // (ADR paypal-express_per-store-credentials). Built fresh per request, so it picks
+        // up the checkout store.
+        if(paypalexpress_config('sandbox')){
+            $this->clientId = paypalexpress_config('client_id_sandbox');
+            $this->clientSecret = paypalexpress_config('client_secret_sandbox');
             $this->baseUrl = 'https://api-m.sandbox.paypal.com';
         }else{
-            $this->clientId = config('Plugins/PaypalExpress.client_id_live');
-            $this->clientSecret = config('Plugins/PaypalExpress.client_secret_live');
+            $this->clientId = paypalexpress_config('client_id_live');
+            $this->clientSecret = paypalexpress_config('client_secret_live');
             $this->baseUrl = 'https://api-m.paypal.com';
         }
         $this->client = new Client([
@@ -104,8 +109,10 @@ class PaypalService
                         ]
                     ],
                     'application_context' => [
-                        'return_url' => config('Plugins/PaypalExpress.return_url'),
-                        'cancel_url' => config('Plugins/PaypalExpress.cancel_url')
+                        // Computed from the plugin route so the redirect matches the
+                        // store's current domain (no stored URL to drift). See function.php.
+                        'return_url' => paypalexpress_return_url(),
+                        'cancel_url' => paypalexpress_cancel_url()
                     ]
                 ]
             ]);
