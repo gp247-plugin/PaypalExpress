@@ -12,5 +12,5 @@
     "requireUpdateFrom": "3.1",
     "requireComposerPackages": ["gp247/shop"],
     "requireGp247Extensions": [],
-    "storeScope": "platform"
+    "storeScope": "store"
 }

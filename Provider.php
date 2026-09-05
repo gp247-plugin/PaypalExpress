@@ -21,14 +21,14 @@
          require_once __DIR__.'/function.php';
      }
 
-     // storeScope = "platform" (gp247.json): the PayPal config screen is owner-only.
-     // We deliberately DO NOT append this plugin's admin segment to
+     // storeScope = "store" (gp247.json): credentials may differ per store, and the root
+     // admin configures each store via the ConfigForm picker
+     // (ADR paypal-express_per-store-credentials). WHO may edit is a separate knob from
+     // the scope: we deliberately DO NOT append this plugin's admin segment to
      // gp247-config.admin.store_scoped_segments, so the MultiStore Pro fence keeps the
-     // screen GLOBAL and blocks store-admins/vendors — a vendor must never be able to
-     // change the store's payment credentials. The root admin still configures per store
-     // via the ConfigForm picker (ADR paypal-express_per-store-credentials). This is the
-     // intended contrast with a storeScope=store plugin (e.g. ShippingStandard), which
-     // DOES append its segment.
+     // screen owner-only and blocks store-admins/vendors — a vendor must never be able
+     // to change the store's payment credentials. Contrast with ShippingStandard (also
+     // storeScope=store), which DOES append its segment so a vendor can self-configure.
  }
 
 // Add CSRF exceptions for PayPal webhook routes

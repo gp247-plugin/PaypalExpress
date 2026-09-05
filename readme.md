@@ -116,7 +116,7 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ## Changelog
 
 ### Version 3.1
-- PayPal credentials (client id/secret sandbox+live, webhook id, sandbox toggle) moved from `.env` into the admin screen, **per store**, with client secrets **encrypted at rest** (`enc:v2:…`). `storeScope: platform` — only the site/marketplace owner configures; the root admin can set a PayPal account per store.
+- PayPal credentials (client id/secret sandbox+live, webhook id, sandbox toggle) moved from `.env` into the admin screen, **per store**, with client secrets **encrypted at rest** (`enc:v2:…`). `storeScope: store` — the root admin can set a PayPal account per store; the plugin stays out of `store_scoped_segments`, so only the site/marketplace owner (never a vendor) can open the screen.
 - **The database is the single runtime source of configuration — `.env` is no longer read.** A legacy `.env` is **imported once** on upgrade (secrets encrypted), then the database is used exclusively. `return_url`/`cancel_url` are no longer configured by hand; they are derived from the plugin route and the store's domain.
 - Requires GP247 Core 3.0.3+.
 

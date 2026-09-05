@@ -116,7 +116,7 @@ https://your-domain.com/plugin/paypal-express/webhook
 ## Changelog
 
 ### Version 3.1
-- Thông tin kết nối PayPal (client id/secret sandbox+live, webhook id, chế độ sandbox) chuyển từ `.env` vào màn cấu hình admin, **theo từng cửa hàng**, client secret được **mã hoá at-rest** (`enc:v2:…`). `storeScope: platform` — chỉ chủ site/chủ sàn cấu hình; root admin đặt tài khoản PayPal riêng cho từng store.
+- Thông tin kết nối PayPal (client id/secret sandbox+live, webhook id, chế độ sandbox) chuyển từ `.env` vào màn cấu hình admin, **theo từng cửa hàng**, client secret được **mã hoá at-rest** (`enc:v2:…`). `storeScope: store` — root admin đặt tài khoản PayPal riêng cho từng store; plugin không đăng ký `store_scoped_segments` nên chỉ chủ site/chủ sàn (không bao giờ là vendor) mở được màn này.
 - **Cơ sở dữ liệu là nguồn cấu hình duy nhất lúc chạy — ngừng đọc `.env`.** Site cũ còn `.env` được **tự nhập một lần** khi nâng cấp (client secret mã hoá) rồi từ đó chỉ dùng cơ sở dữ liệu. `return_url`/`cancel_url` không còn cấu hình tay, tự sinh theo route + tên miền cửa hàng.
 - Yêu cầu GP247 Core 3.0.3+.
 

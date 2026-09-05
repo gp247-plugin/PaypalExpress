@@ -16,12 +16,13 @@ use GP247\Shop\Models\ShopPaymentStatus;
  *
  * Per-store + secret-at-rest (ADR paypal-express_per-store-credentials): the
  * client secrets are `password` fields, so core encrypts them at rest and never
- * reveals an inherited value at a sub-store scope. storeScope is "platform"
- * (gp247.json): only the site/marketplace owner (root admin) reaches this screen —
- * store-admins/vendors are blocked by the fence because Provider.php does NOT
- * register this plugin's admin segment. Root still gets the per-store picker
- * (storeScoped()=true): multi-store = a PayPal account per store; marketplace =
- * stores inherit the platform's GLOBAL account.
+ * reveals an inherited value at a sub-store scope. storeScope is "store"
+ * (gp247.json): credentials CAN differ per store (storeScoped()=true gives the root
+ * admin the store picker — multi-store = a PayPal account per store; marketplace =
+ * stores inherit the owner's GLOBAL account). Who may edit is a separate knob:
+ * Provider.php deliberately does NOT register this plugin's admin segment in
+ * store_scoped_segments, so store-admins/vendors are blocked by the fence and only
+ * the site/marketplace owner (root admin) reaches this screen.
  */
 class AdminLivewire extends ConfigForm
 {
@@ -71,7 +72,7 @@ class AdminLivewire extends ConfigForm
 
     /**
      * Opt into per-store scope so the root admin gets the store picker (multi-store:
-     * a PayPal account per store; marketplace: stores inherit the platform GLOBAL account).
+     * a PayPal account per store; marketplace: stores inherit the owner's GLOBAL account).
      *
      * @return bool
      */
