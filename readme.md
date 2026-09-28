@@ -11,7 +11,7 @@ Accept **PayPal** payments in your GP247/Shop store. Customers pay for their ord
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Version** | 3.1.2 |
+| **Version** | 3.1.3 |
 | **Developer** | GP247 |
 | **Requires** | GP247 Core **3.0.3+** (per-store config + at-rest secret encryption) · package `gp247/shop` |
 
@@ -136,6 +136,9 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ---
 
 ## Changelog
+
+### Version 3.1.3
+- Admin screen: the fields are grouped into Mode / Sandbox / Live / Webhook / Order status blocks with an "In use" badge on the active environment (needs a GP247 Core that supports config-form sections; older cores show the flat list), every setting now carries a short hint (where to find the Client ID/Secret and Webhook ID, which event to subscribe, what each status does), and the fields keep a fixed order on every server (previously the order depended on the database).
 
 ### Version 3.1.2
 - **Fixed: PayPal webhooks never reached the plugin** on 3.1.x — the endpoint sat behind the storefront's CSRF/maintenance middleware, so PayPal always got a 419 and refunds were never written to the order. The webhook is now a dedicated, rate-limited endpoint. **The URL is unchanged**, so your registered Webhook ID keeps working. PayPal resends failed events for a few days; older refunds need a manual check in your PayPal dashboard.

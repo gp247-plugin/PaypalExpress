@@ -11,7 +11,7 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.1.2 |
+| **Phiên bản** | 3.1.3 |
 | **Nhà phát triển** | GP247 |
 | **Yêu cầu** | GP247 Core **3.0.3+** (cấu hình theo cửa hàng + mã hoá bí mật at-rest) · package `gp247/shop` |
 
@@ -136,6 +136,9 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.1.3
+- Màn cấu hình: các ô được gom thành khối Chế độ / Sandbox / Live / Webhook / Trạng thái đơn, có nhãn "Đang dùng" ở môi trường đang bật (cần GP247 Core hỗ trợ khối cấu hình; core cũ hiện danh sách phẳng), mỗi ô có chú thích ngắn (lấy Client ID/Secret và Webhook ID ở đâu, đăng ký sự kiện nào, từng trạng thái dùng để làm gì), và các ô giữ thứ tự cố định trên mọi máy chủ (trước đây phụ thuộc cơ sở dữ liệu).
 
 ### Version 3.1.2
 - **Sửa lỗi: webhook PayPal chưa bao giờ tới được plugin** ở bản 3.1.x — endpoint nằm sau lớp CSRF/bảo trì của storefront nên PayPal luôn nhận 419 và hoàn tiền không được ghi vào đơn. Webhook nay là endpoint riêng, có giới hạn tần suất. **URL không đổi**, Webhook ID đã đăng ký vẫn dùng được. PayPal tự gửi lại sự kiện thất bại trong vài ngày; hoàn tiền cũ hơn cần đối chiếu tay trên PayPal dashboard.

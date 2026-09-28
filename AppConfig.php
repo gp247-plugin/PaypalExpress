@@ -13,6 +13,25 @@ use GP247\Core\Models\AdminMenu;
 use Illuminate\Support\Facades\DB;
 class AppConfig extends ExtensionConfigDefault
 {
+    /**
+     * Display order of the settings on the admin screen (admin_config.sort).
+     *
+     * WHY explicit: core orders the form by `sort` only; with every row at 0 the database
+     * returned them in index order, which differed between servers (3.1.2 and earlier).
+     */
+    public const SORT = [
+        'sandbox' => 1,
+        'client_id_sandbox' => 2,
+        'client_secret_sandbox' => 3,
+        'client_id_live' => 4,
+        'client_secret_live' => 5,
+        'webhook_id' => 6,
+        'order_status_success' => 7,
+        'order_status_refunded' => 8,
+        'payment_status_success' => 9,
+        'payment_status_refunded' => 10,
+    ];
+
     public function __construct()
     {
         //Read config from gp247.json
@@ -63,7 +82,7 @@ class AppConfig extends ExtensionConfigDefault
                     'group'  => $this->configGroup,
                     'code'    => $this->configKey.'_config',
                     'key'    => $this->configKey.'_order_status_success',
-                    'sort'   => 0,
+                    'sort'   => self::SORT['order_status_success'],
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 2, //Order sttus processing
                     'security' => 0,
@@ -73,7 +92,7 @@ class AppConfig extends ExtensionConfigDefault
                     'group'  => $this->configGroup,
                     'code'    => $this->configKey.'_config',
                     'key'    => $this->configKey.'_order_status_refunded',
-                    'sort'   => 0,
+                    'sort'   => self::SORT['order_status_refunded'],
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 7, //Order sttus refunded
                     'security' => 0,
@@ -83,7 +102,7 @@ class AppConfig extends ExtensionConfigDefault
                     'group'  => $this->configGroup,
                     'code'    => $this->configKey.'_config',
                     'key'    => $this->configKey.'_payment_status_success',
-                    'sort'   => 0,
+                    'sort'   => self::SORT['payment_status_success'],
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 3, //Order payment paid
                     'security' => 0,
@@ -93,7 +112,7 @@ class AppConfig extends ExtensionConfigDefault
                     'group'  => $this->configGroup,
                     'code'    => $this->configKey.'_config',
                     'key'    => $this->configKey.'_payment_status_refunded',
-                    'sort'   => 0,
+                    'sort'   => self::SORT['payment_status_refunded'],
                     'store_id' => GP247_STORE_ID_GLOBAL,
                     'value'  => 4, //Order payment refunded
                     'security' => 0,
@@ -166,7 +185,7 @@ class AppConfig extends ExtensionConfigDefault
                 'group'    => $this->configGroup,
                 'code'     => $this->configKey.'_config',
                 'key'      => $this->configKey.'_'.$key,
-                'sort'     => 0,
+                'sort'     => self::SORT[$key],
                 'store_id' => GP247_STORE_ID_GLOBAL,
                 'value'    => $meta['default'],
                 'security' => $meta['secret'] ? 1 : 0,
@@ -230,12 +249,33 @@ class AppConfig extends ExtensionConfigDefault
                 }
             }
 
+            self::convergeSort();
+
             $return = ['error' => 0, 'msg' => ''];
         } catch (\Throwable $e) {
             $return = ['error' => 1, 'msg' => $e->getMessage()];
         }
 
         return $return;
+    }
+
+    /**
+     * Give every setting row (all stores) its display position from SORT. Idempotent and
+     * value-free: only `sort` is written, and only where it differs.
+     *
+     * @return void
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-per-store-credentials
+     */
+    public static function convergeSort(): void
+    {
+        foreach (self::SORT as $key => $sort) {
+            AdminConfig::where('group', 'Plugins')
+                ->where('key', 'PaypalExpress_'.$key)
+                ->where('sort', '!=', $sort)
+                ->update(['sort' => $sort]);
+        }
     }
 
     public function uninstall()

@@ -74,3 +74,18 @@ if (!function_exists('paypalexpress_cancel_url')) {
         return route('paypal-express.cancel_payment');
     }
 }
+
+if (!function_exists('paypalexpress_webhook_url')) {
+    /**
+     * Absolute URL the site owner registers as a webhook endpoint in PayPal Developer.
+     *
+     * @return string Absolute webhook URL for the current domain.
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-per-store-credentials
+     */
+    function paypalexpress_webhook_url(): string
+    {
+        return route('paypal-express.webhook');
+    }
+}
