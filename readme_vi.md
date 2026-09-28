@@ -11,7 +11,7 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.1 |
+| **Phiên bản** | 3.1.2 |
 | **Nhà phát triển** | GP247 |
 | **Yêu cầu** | GP247 Core **3.0.3+** (cấu hình theo cửa hàng + mã hoá bí mật at-rest) · package `gp247/shop` |
 
@@ -136,6 +136,14 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.1.2
+- **Sửa lỗi: webhook PayPal chưa bao giờ tới được plugin** ở bản 3.1.x — endpoint nằm sau lớp CSRF/bảo trì của storefront nên PayPal luôn nhận 419 và hoàn tiền không được ghi vào đơn. Webhook nay là endpoint riêng, có giới hạn tần suất. **URL không đổi**, Webhook ID đã đăng ký vẫn dùng được. PayPal tự gửi lại sự kiện thất bại trong vài ngày; hoàn tiền cũ hơn cần đối chiếu tay trên PayPal dashboard.
+- Sự kiện hoàn tiền nay đặt đúng "Trạng thái đơn khi hoàn tiền" đã cấu hình (trước đây sai khoá nên trạng thái bị trống) và đi qua luồng đổi trạng thái chuẩn của shop, nên lịch sử đơn, sự kiện và tồn kho nhất quán. Hoàn tiền trên đơn đã huỷ chỉ ghi tiền.
+- Trang capture không còn hiện trang trắng khi PayPal chưa hoàn tất; đơn đã thanh toán hoặc đã đóng không bao giờ bị capture/huỷ lại từ link quay về/huỷ.
+- Số tiền gửi PayPal lấy từ đơn đã lưu (không lấy từ session).
+- Log không còn chứa session của khách hay toàn bộ nội dung webhook.
+- Gỡ plugin xoá cấu hình của mọi cửa hàng (kể cả bí mật đã mã hoá).
 
 ### Version 3.1
 - Thông tin kết nối PayPal (client id/secret sandbox+live, webhook id, chế độ sandbox) chuyển từ `.env` vào màn cấu hình admin, **theo từng cửa hàng**, client secret được **mã hoá at-rest** (`enc:v2:…`). `storeScope: store` — root admin đặt tài khoản PayPal riêng cho từng store; plugin không đăng ký `store_scoped_segments` nên chỉ chủ site/chủ sàn (không bao giờ là vendor) mở được màn này.

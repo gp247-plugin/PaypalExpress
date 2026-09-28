@@ -11,7 +11,7 @@ Accept **PayPal** payments in your GP247/Shop store. Customers pay for their ord
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Version** | 3.1 |
+| **Version** | 3.1.2 |
 | **Developer** | GP247 |
 | **Requires** | GP247 Core **3.0.3+** (per-store config + at-rest secret encryption) · package `gp247/shop` |
 
@@ -136,6 +136,14 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ---
 
 ## Changelog
+
+### Version 3.1.2
+- **Fixed: PayPal webhooks never reached the plugin** on 3.1.x — the endpoint sat behind the storefront's CSRF/maintenance middleware, so PayPal always got a 419 and refunds were never written to the order. The webhook is now a dedicated, rate-limited endpoint. **The URL is unchanged**, so your registered Webhook ID keeps working. PayPal resends failed events for a few days; older refunds need a manual check in your PayPal dashboard.
+- Refund events now set the configured "Order status refunded" (a wrong key previously left the status empty) and go through the shop's standard status change, so order history, events and stock stay consistent. A refund on a cancelled order is recorded as money only.
+- The capture page no longer shows a blank page when PayPal has not completed the payment; a paid or closed order is never captured or cancelled again from the return/cancel links.
+- The amount sent to PayPal is taken from the saved order (not from the session).
+- Logs no longer contain the shopper's session or the full webhook body.
+- Uninstall removes the plugin's settings for every store (including encrypted secrets).
 
 ### Version 3.1
 - PayPal credentials (client id/secret sandbox+live, webhook id, sandbox toggle) moved from `.env` into the admin screen, **per store**, with client secrets **encrypted at rest** (`enc:v2:…`). `storeScope: store` — the root admin can set a PayPal account per store; the plugin stays out of `store_scoped_segments`, so only the site/marketplace owner (never a vendor) can open the screen.

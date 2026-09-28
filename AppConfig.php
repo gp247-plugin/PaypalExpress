@@ -242,9 +242,15 @@ class AppConfig extends ExtensionConfigDefault
     {
         //Please delete all values inserted in the installation step
         try {
+            // WHY group + key prefix: per-store overrides saved from the admin screen carry
+            // `code = Plugins` (core's setConfigValue), so deleting by `code` alone left the
+            // store rows - encrypted secrets included - behind after uninstall.
             (new AdminConfig)
-            ->where('key', $this->configKey)
-            ->orWhere('code', $this->configKey.'_config')
+            ->where('group', $this->configGroup)
+            ->where(function ($query) {
+                $query->where('key', $this->configKey)
+                    ->orWhere('key', 'like', $this->configKey.'\_%');
+            })
             ->delete();
 
             //Admin config home

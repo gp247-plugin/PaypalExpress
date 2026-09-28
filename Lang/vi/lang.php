@@ -15,4 +15,11 @@ return [
     'client_secret_live' => 'Client Secret (Live)',
     'webhook_id' => 'Webhook ID',
     'config_paypal' => 'Cấu hình Paypal Express',
+    'error_missing_order' => 'Không tìm thấy đơn hàng của bạn. Vui lòng đặt hàng lại.',
+    'error_missing_params' => 'PayPal không trả về thông tin phê duyệt. Vui lòng thử lại.',
+    'error_invalid_token' => 'Phê duyệt PayPal này không thuộc đơn hàng hiện tại của bạn.',
+    'error_create_failed' => 'Không kết nối được PayPal để bắt đầu thanh toán. Vui lòng thử lại hoặc liên hệ với chúng tôi.',
+    'error_capture_failed' => 'Không hoàn tất được thanh toán PayPal. Vui lòng liên hệ với chúng tôi.',
+    'error_not_completed' => 'PayPal chưa hoàn tất thanh toán. Vui lòng thử lại sau ít phút.',
+    'error_cannot_cancel' => 'Đơn hàng này không thể huỷ từ trang thanh toán nữa.',
 ];

@@ -3,156 +3,191 @@
 namespace App\GP247\Plugins\PaypalExpress\Services;
 
 use App\GP247\Plugins\PaypalExpress\Models\PaypalWebhook;
-use Illuminate\Support\Facades\Log;
+use GP247\Shop\Models\ShopOrder;
+use GP247\Shop\Models\ShopOrderStatus;
 
+/**
+ * Turns a verified PayPal webhook event into ledger rows and order status changes,
+ * going only through the core seams (recordRefund / changeStatus). Every event is
+ * journaled in paypal_webhooks and deduplicated on its event id.
+ *
+ * @aidlc-unit plugin-paypal-express
+ * @aidlc-story US-paypal-record-payment-into-ledger
+ * @aidlc-story US-paypal-express-security-hardening
+ * @aidlc-adr paypal-express_webhook-outside-storefront-middleware
+ */
 class PaypalWebhookService
 {
+    private const PLUGIN_KEY = 'PaypalExpress';
+
     /**
-     * Process a webhook from PayPal
+     * Journal a verified event and schedule its processing after the response.
      *
-     * @param array $webhookData
-     * @return bool
+     * @param array<string, mixed> $webhookData Decoded event body.
+     * @return bool True when the event was accepted (new or already seen).
      */
-    public function processWebhook($webhookData)
+    public function processWebhook(array $webhookData): bool
     {
         try {
-            // Extract webhook ID and event type
-            $eventId = $webhookData['id'] ?? null;
-            $eventType = $webhookData['event_type'] ?? null;
-            
-            if (!$eventType) {
-                gp247_report('PayPal Webhook - Missing event type.'.json_encode($webhookData));
+            $eventId = isset($webhookData['id']) ? (string) $webhookData['id'] : null;
+            $eventType = isset($webhookData['event_type']) ? (string) $webhookData['event_type'] : '';
+
+            if ($eventType === '') {
+                gp247_report('PayPal Webhook - event ' . ($eventId ?? '?') . ' has no event type');
                 return false;
             }
-            
-            // Check if webhook already exists
-            if ($eventId) {
-                $existingWebhook = PaypalWebhook::where('event_id', $eventId)->first();
-                if ($existingWebhook) {
-                    gp247_report('PayPal Webhook - Duplicate webhook received.'.json_encode($webhookData));
-                    return true; // Return true to acknowledge receipt
-                }
+
+            if ($eventId !== null && PaypalWebhook::where('event_id', $eventId)->exists()) {
+                // Acknowledge: PayPal resends until it gets a 200.
+                return true;
             }
-            
-            // Extract resource ID and type
-            $resourceId = $webhookData['resource']['id'] ?? null;
-            $resourceType = $webhookData['resource_type'] ?? null;
-            
-            // Create webhook record
+
             $webhook = PaypalWebhook::create([
                 'event_id' => $eventId,
                 'event_type' => $eventType,
-                'resource_id' => $resourceId,
-                'resource_type' => $resourceType,
-                'status' => 'processed',
-                'payload' => $webhookData
+                'resource_id' => isset($webhookData['resource']['id']) ? (string) $webhookData['resource']['id'] : null,
+                'resource_type' => isset($webhookData['resource_type']) ? (string) $webhookData['resource_type'] : null,
+                'status' => 'pending',
+                'payload' => $webhookData,
             ]);
-            
-            // Dispatch job to process webhook
-            dispatch(function() use ($webhook) {
+
+            // WHY afterResponse and not a queued job: PayPal only needs the 200 quickly, and
+            // the platform must work without a queue worker (NFR-AVAIL-paypal-express-no-queue).
+            dispatch(function () use ($webhook) {
                 $this->processWebhookJob($webhook);
             })->afterResponse();
-            
+
             return true;
-        } catch (\Exception $e) {
-            gp247_report('PayPal Webhook - Error processing webhook: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            gp247_report('PayPal Webhook - journaling failed: ' . $e->getMessage());
             return false;
         }
     }
-    
+
     /**
-     * Process a webhook job
+     * Apply one journaled event.
      *
      * @param PaypalWebhook $webhook
      * @return void
      */
-    public function processWebhookJob(PaypalWebhook $webhook)
+    public function processWebhookJob(PaypalWebhook $webhook): void
     {
         try {
-            // Process webhook based on event type
             switch ($webhook->event_type) {
                 case 'PAYMENT.CAPTURE.REFUNDED':
                     $this->handlePaymentCaptureRefunded($webhook);
                     break;
                 default:
-                    $webhook->markAsProcessed();
+                    // Not an event this plugin acts on; the capture itself is recorded on the return URL.
                     break;
             }
-        } catch (\Exception $e) {
-            gp247_report('PayPal Webhook - Error processing webhook job: ' . $e->getMessage());
+            $webhook->markAsProcessed();
+        } catch (\Throwable $e) {
+            gp247_report('PayPal Webhook - event ' . ($webhook->event_id ?? $webhook->id) . ' (' . $webhook->event_type . ') failed: ' . $e->getMessage());
             $webhook->markAsFailed($e->getMessage());
         }
     }
-    
+
     /**
-     * Handle PAYMENT.CAPTURE.REFUNDED event
+     * PAYMENT.CAPTURE.REFUNDED: record the refunded amount and move the order status.
+     *
+     * WHY record the AMOUNT: flipping the whole order to "refunded" was wrong for any
+     * partial refund. The ledger holds the real figure and the payment status follows the
+     * money that is left (ADR shop_order-payment-ledger). A refund on a cancelled order is
+     * money only: re-entering a status would take the returned stock back.
      *
      * @param PaypalWebhook $webhook
      * @return void
      */
-    private function handlePaymentCaptureRefunded(PaypalWebhook $webhook)
+    private function handlePaymentCaptureRefunded(PaypalWebhook $webhook): void
     {
-        try {
-            $payload = $webhook->payload;
-            
-            // Lấy capture_id thay vì resource id
-            $captureId = $payload['resource']['capture_id'] ?? '';
-            if (empty($captureId)) {
-                // Backup: Thử lấy từ links nếu không có capture_id trực tiếp
-                foreach ($payload['resource']['links'] ?? [] as $link) {
-                    if ($link['rel'] === 'up' && strpos($link['href'], '/captures/') !== false) {
-                        $parts = explode('/captures/', $link['href']);
-                        $captureId = end($parts);
-                        break;
-                    }
-                }
-            }
+        $payload = $webhook->payload;
+        $resource = is_array($payload['resource'] ?? null) ? $payload['resource'] : [];
+        $captureId = $this->captureIdFrom($resource);
 
-            if (empty($captureId)) {
-                gp247_report('PayPal Webhook - Cannot find capture ID in refund payload: ' . json_encode($payload));
-                return;
-            }
+        if ($captureId === '') {
+            gp247_report('PayPal Webhook - event ' . ($webhook->event_id ?? '?') . ': no capture id in refund');
+            return;
+        }
 
-            $amount = $payload['resource']['amount']['value'] ?? 0;
-            $currency = $payload['resource']['amount']['currency_code'] ?? '';
-            
-            // Tìm order bằng capture ID
-            $order = \GP247\Shop\Models\ShopOrder::where('transaction', $captureId)->first();
-            
-            if ($order) {
-                // WHY record the refunded AMOUNT: flipping the whole order to "refunded"
-                // was wrong for any partial refund — returning 10% marked the order fully
-                // refunded and the figure itself was stored nowhere. The ledger holds the
-                // real amount and the payment status follows the money that is left
-                // (ADR shop_order-payment-ledger; F13).
-                $refunded = (float) $amount;
-                $refundId = $payload['resource']['id'] ?? null;
-                if ($refunded > 0) {
-                    $order->recordRefund($refunded, 'PaypalExpress', $refundId, null, 'PayPal refund ' . $currency);
-                }
+        $order = ShopOrder::where('transaction', $captureId)->first();
+        if (!$order) {
+            gp247_report('PayPal Webhook - event ' . ($webhook->event_id ?? '?') . ': no order for capture ' . $captureId);
+            return;
+        }
 
-                // Only the ORDER status comes from config now; payment status is derived.
-                $order->update([
-                    'status' => gp247_config('Paypal_order_status_refunded'),
-                ]);
-                
-                // Add order history
-                $dataHistory = [
-                    'order_id' => $order->id,
-                    'content' => 'Payment refunded via PayPal. Amount: ' . $amount . ' ' . $currency,
-                    'customer_id' => $order->customer_id ?? 0,
-                    'order_status_id' => gp247_config('Paypal_order_status_refunded'),
-                ];
-                $order->addOrderHistory($dataHistory);
+        $refunded = (float) ($resource['amount']['value'] ?? 0);
+        $currency = strtoupper((string) ($resource['amount']['currency_code'] ?? ''));
+        $refundId = isset($resource['id']) ? (string) $resource['id'] : null;
 
-                gp247_report('PayPal Webhook - Order refunded: ' . $order->id);
-            } else {
-                gp247_report('PayPal Webhook - Order not found for capture ID: ' . $captureId);
-            }
-            
-            $webhook->markAsProcessed();
-        } catch (\Exception $e) {
-            throw $e;
+        $note = $this->reconciliationNote($order, $refunded, $currency);
+        if ($note !== null) {
+            gp247_report('PayPal Webhook - order ' . $order->id . ': ' . $note);
+        }
+
+        if ($refunded > 0) {
+            $order->recordRefund($refunded, self::PLUGIN_KEY, $refundId, null, $note ?? ('PayPal refund ' . $currency));
+        }
+
+        $history = [
+            'content' => 'Payment refunded via PayPal. Amount: ' . $refunded . ' ' . $currency,
+            'customer_id' => $order->customer_id ?: 0,
+        ];
+        $order = ShopOrder::find($order->id);
+        if ((int) $order->status === ShopOrderStatus::CANCELED) {
+            $order->addOrderHistory($history + ['order_id' => $order->id, 'order_status_id' => $order->status]);
+            return;
+        }
+
+        $target = (int) gp247_config(self::PLUGIN_KEY . '_order_status_refunded');
+        if ($target > 0) {
+            $order->changeStatus($target, $history);
+        } else {
+            $order->addOrderHistory($history + ['order_id' => $order->id, 'order_status_id' => $order->status]);
         }
     }
-} 
+
+    /**
+     * The capture a refund belongs to: `capture_id`, else the `up` link.
+     *
+     * @param array<string, mixed> $resource
+     * @return string Empty when not found.
+     */
+    private function captureIdFrom(array $resource): string
+    {
+        $captureId = (string) ($resource['capture_id'] ?? '');
+        if ($captureId !== '') {
+            return $captureId;
+        }
+        foreach ($resource['links'] ?? [] as $link) {
+            if (($link['rel'] ?? '') === 'up' && str_contains((string) ($link['href'] ?? ''), '/captures/')) {
+                $parts = explode('/captures/', (string) $link['href']);
+                return (string) end($parts);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * A note when the refund does not reconcile with the order (currency differs, or the
+     * refund exceeds what was received). Null when everything matches.
+     *
+     * @param ShopOrder $order
+     * @param float $refunded
+     * @param string $currency
+     * @return string|null
+     */
+    private function reconciliationNote(ShopOrder $order, float $refunded, string $currency): ?string
+    {
+        $orderCurrency = strtoupper((string) $order->currency);
+        if ($currency !== '' && $orderCurrency !== '' && $currency !== $orderCurrency) {
+            return 'PayPal refunded ' . $refunded . ' ' . $currency . ' but the order is in ' . $orderCurrency;
+        }
+        if ($refunded > 0 && $refunded - (float) $order->received > 0.01) {
+            return 'PayPal refunded ' . $refunded . ' ' . $currency . ' but only ' . (float) $order->received . ' was received';
+        }
+
+        return null;
+    }
+}

@@ -15,4 +15,11 @@ return [
     'client_secret_live' => 'Client Secret (Live)',
     'webhook_id' => 'Webhook ID',
     'config_paypal' => 'Paypal Express Config',
+    'error_missing_order' => 'Your order could not be found. Please start the checkout again.',
+    'error_missing_params' => 'PayPal did not return the approval details. Please try again.',
+    'error_invalid_token' => 'This PayPal approval does not belong to your current order.',
+    'error_create_failed' => 'PayPal could not be reached to start the payment. Please try again or contact us.',
+    'error_capture_failed' => 'The PayPal payment could not be completed. Please contact us.',
+    'error_not_completed' => 'PayPal has not completed the payment yet. Please try again in a moment.',
+    'error_cannot_cancel' => 'This order can no longer be cancelled from the payment page.',
 ];

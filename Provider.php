@@ -6,17 +6,17 @@
  $config = file_get_contents(__DIR__.'/gp247.json');
  $config = json_decode($config, true);
  $extensionPath = $config['configGroup'].'/'.$config['configKey'];
- 
+
  $this->loadTranslationsFrom(__DIR__.'/Lang', $extensionPath);
- 
+
  if (gp247_extension_check_active($config['configGroup'], $config['configKey'])) {
-     
+
      $this->loadViewsFrom(__DIR__.'/Views', $extensionPath);
-     
+
      if (file_exists(__DIR__.'/config.php')) {
          $this->mergeConfigFrom(__DIR__.'/config.php', $extensionPath);
      }
- 
+
      if (file_exists(__DIR__.'/function.php')) {
          require_once __DIR__.'/function.php';
      }
@@ -31,9 +31,7 @@
      // storeScope=store), which DOES append its segment so a vendor can self-configure.
  }
 
-// Add CSRF exceptions for PayPal webhook routes
-$this->app->resolving(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class, function ($middleware) {
-    $middleware->except([
-        'plugin/paypal/webhook',
-    ]);
-});
+// The webhook route lives outside the "web" middleware group (see Route.php), so it
+// needs no CSRF exemption here. Registering one against the CSRF middleware class was
+// fragile: the class name changed across Laravel releases and the exemption silently
+// stopped applying.

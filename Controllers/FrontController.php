@@ -4,21 +4,31 @@ namespace App\GP247\Plugins\PaypalExpress\Controllers;
 
 use App\GP247\Plugins\PaypalExpress\AppConfig;
 use App\GP247\Plugins\PaypalExpress\Services\PaypalService;
-use GP247\Front\Controllers\RootFrontController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use App\GP247\Plugins\PaypalExpress\Services\PaypalWebhookService;
+use GP247\Front\Controllers\RootFrontController;
+use GP247\Shop\Controllers\ShopCartController;
+use GP247\Shop\Models\ShopOrder;
+use GP247\Shop\Models\ShopOrderStatus;
+use Illuminate\Http\Request;
 
+/**
+ * Storefront endpoints of the PayPal plugin: hand the shopper to PayPal, capture on
+ * return, cancel, and receive PayPal webhooks. Money is written only through the core
+ * ledger (recordPayment / recordRefund) and order status only through changeStatus().
+ *
+ * @aidlc-unit plugin-paypal-express
+ * @aidlc-story US-paypal-record-payment-into-ledger
+ * @aidlc-story US-paypal-express-security-hardening
+ * @aidlc-adr paypal-express_webhook-outside-storefront-middleware
+ */
 class FrontController extends RootFrontController
 {
-    protected $paypalService;
-    public $plugin;
+    public AppConfig $plugin;
 
     public function __construct()
     {
         parent::__construct();
         $this->plugin = new AppConfig;
-        $this->paypalService = new PaypalService();
     }
 
     public function index()
@@ -27,262 +37,253 @@ class FrontController extends RootFrontController
     }
 
     /**
-     * Process order
+     * Translated shopper-facing message of this plugin.
      *
-     * @return void
+     * @param string $key
+     * @return string
+     */
+    private function lang(string $key): string
+    {
+        return (string) trans('Plugins/PaypalExpress::lang.' . $key);
+    }
+
+    /**
+     * Redirect the shopper home with an error message.
+     *
+     * @param string $key Lang key.
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    private function failHome(string $key)
+    {
+        return redirect(gp247_route_front('front.home'))->with('error', $this->lang($key));
+    }
+
+    /**
+     * Called by the shop right after the order is saved (session `orderID`): create the
+     * PayPal order from the SAVED order and send the shopper to PayPal to approve it.
+     *
+     * @return \Illuminate\Http\RedirectResponse
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-security-hardening
      */
     public function processOrder()
     {
-        $data = session()->all();
-        if (empty($data['orderID']) || empty($data['dataOrder']) || empty($data['arrCartDetail'])) {
-            gp247_report('PayPal Process Order - Missing required session data: ' . json_encode($data));
-            return redirect()->route('front.home')->with('error', 'Missing required order data');
-        }
-        $orderID = $data['orderID'];
-        $dataOrder = $data['dataOrder'];
-        $arrCartDetail = $data['arrCartDetail'];
-
-        $order = \GP247\Shop\Models\ShopOrder::find($orderID);
+        $orderId = session('orderID');
+        $order = $orderId ? ShopOrder::find($orderId) : null;
         if (!$order) {
-            gp247_report('PayPal Process Order - Order not found: ' . $orderID);
-            return redirect()->route('front.home')->with('error', 'Order not found');
+            gp247_report('PayPal Process Order - no order in session');
+            return $this->failHome('error_missing_order');
+        }
+        if ($order->isLocked() || (float) $order->received >= (float) $order->total) {
+            gp247_report('PayPal Process Order - order ' . $order->id . ' is locked or already paid');
+            return $this->failHome('error_missing_order');
         }
 
         try {
-            $orderData = [
-                'order_id' => $orderID,
-                'description' => "Order ID: ".$orderID,
-                'currency' => $dataOrder['currency'],
-                'total' => $dataOrder['total'],
-                'subtotal' => $dataOrder['subtotal'],
-                'tax' => $dataOrder['tax'] ?? 0,
-                'shipping' => $dataOrder['shipping'] ?? 0,
-                'discount' => $dataOrder['discount'] ?? 0,
-                'other_fee' => $dataOrder['other_fee'] ?? 0,
-                'items' => $arrCartDetail
-            ];
-
-            $result = $this->paypalService->createOrder($orderData);
-            if (empty($result['id'])) {
-                gp247_report('PayPal Process Order - Failed to get token ID: ' . json_encode($result));
-                return redirect()->route('front.home')->with('error', 'Failed to create PayPal order');
-            }
-
-            // Update transaction ID in database
-            $paypalToken = $result['id'];
-            session(['paypalToken' => $paypalToken]);
-            
-            $approvalUrl = null;
-            foreach ($result['links'] as $link) {
-                if ($link['rel'] === 'approve') {
-                    $approvalUrl = $link['href'];
-                    break;
-                }
-            }
-
-            if (!$approvalUrl) {
-                gp247_report('PayPal Process Order - No approval URL found: ' . json_encode($result));
-                return redirect()->route('front.home')->with('error', 'Invalid PayPal response');
-            }
-            //Dont use header('Location: ' . $approvalUrl);
-            //Because session will be lost
-            return redirect()->away($approvalUrl);
-
-        } catch (\Exception $e) {
-            gp247_report('PayPal Process Order - Error: ' . $e->getMessage());
-            
-            // Check if error is related to unsupported currency
-            $errorMessage = $e->getMessage();
-            if (stripos($errorMessage, 'currency') !== false && 
-                (stripos($errorMessage, 'not supported') !== false || 
-                 stripos($errorMessage, 'invalid') !== false || 
-                 stripos($errorMessage, 'unsupported') !== false)) {
-                
-                // Extract currency code from error message if possible
-                $currencyCode = $dataOrder['currency'];
-                
-                return redirect()->route('front.home')->with('error', 
-                    'Currency ' . $currencyCode . ' is not supported by PayPal. Please try with a different currency.');
-            }
-            
-            return redirect()->route('front.home')->with('error', 'PayPal Process for order '.$orderID.' failed. Please contact to administrator.');
+            $result = (new PaypalService)->createOrder($order);
+        } catch (\Throwable $e) {
+            gp247_report('PayPal Process Order - order ' . $order->id . ': ' . $e->getMessage());
+            return $this->failHome('error_create_failed');
         }
+
+        $paypalOrderId = (string) ($result['id'] ?? '');
+        $approvalUrl = null;
+        foreach ($result['links'] ?? [] as $link) {
+            if (($link['rel'] ?? '') === 'approve' && !empty($link['href'])) {
+                $approvalUrl = (string) $link['href'];
+                break;
+            }
+        }
+        if ($paypalOrderId === '' || $approvalUrl === null) {
+            gp247_report('PayPal Process Order - order ' . $order->id . ': PayPal answered without id/approve link');
+            return $this->failHome('error_create_failed');
+        }
+
+        // The token is compared on return: only the PayPal order created in THIS checkout
+        // session may be captured for this order.
+        session(['paypalToken' => $paypalOrderId]);
+
+        // Dont use header('Location: ...'): the session would be lost.
+        return redirect()->away($approvalUrl);
     }
 
     /**
-     * Capture payment after approval
-     * Security measures:
-     * 1. Verify PayPal response
-     * 2. Check session data
-     * 3. Validate order status
+     * Return URL after approval: capture the payment, write it to the ledger, move the
+     * order status through the core seam, then finish the checkout.
+     *
+     * @return \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-record-payment-into-ledger
+     * @aidlc-story US-paypal-express-security-hardening
      */
     public function capturePayment()
     {
+        $token = (string) request()->input('token', '');
+        $payerId = (string) request()->input('PayerID', '');
+        $orderId = session('orderID');
+        $order = $orderId ? ShopOrder::find($orderId) : null;
+
+        if ($token === '' || $payerId === '') {
+            gp247_report('PayPal Capture Payment - order ' . ($orderId ?? '?') . ': missing approval parameters');
+            return $this->failHome('error_missing_params');
+        }
+        if (!$order) {
+            gp247_report('PayPal Capture Payment - no order in session');
+            return $this->failHome('error_missing_order');
+        }
+        if (!hash_equals((string) session('paypalToken', ''), $token)) {
+            gp247_report('PayPal Capture Payment - order ' . $order->id . ': token does not match this checkout');
+            return $this->failHome('error_invalid_token');
+        }
+        if ($order->isLocked() || (float) $order->received >= (float) $order->total) {
+            // Already settled (webhook, admin, or a replayed return URL): just finish.
+            gp247_report('PayPal Capture Payment - order ' . $order->id . ' already paid or locked, capture skipped');
+            session()->forget('paypalToken');
+            return (new ShopCartController)->completeOrder();
+        }
+
         try {
-            // Get token and PayerID from PayPal approval response
-            $token = request()->token;
-            $PayerID = request()->PayerID;
+            $result = (new PaypalService)->captureOrder($token);
+        } catch (\Throwable $e) {
+            gp247_report('PayPal Capture Payment - order ' . $order->id . ': ' . $e->getMessage());
+            return $this->failHome('error_capture_failed');
+        }
 
-            if (!$token || !$PayerID) {
-                return response()->json(['error' => 'Missing PayPal approval parameters'], 400);
+        if (($result['status'] ?? '') !== 'COMPLETED') {
+            // Keep the session so the shopper can retry once PayPal completes.
+            gp247_report('PayPal Capture Payment - order ' . $order->id . ': status ' . ($result['status'] ?? 'unknown'));
+            return $this->failHome('error_not_completed');
+        }
+
+        session()->forget('paypalToken');
+        $this->recordCapture($order, $result);
+
+        return (new ShopCartController)->completeOrder();
+    }
+
+    /**
+     * Write a COMPLETED capture to the order: the ledger row, the gateway reference and
+     * the configured order status (through the seam).
+     *
+     * WHY record the money and not just a status: until the ledger existed a successful
+     * capture only set flags, so a paid order still carried received = 0 and never
+     * entered revenue. recordPayment() is idempotent on the capture id, so a replayed
+     * callback cannot double-count (ADR shop_order-payment-ledger).
+     *
+     * @param ShopOrder $order
+     * @param array<string, mixed> $result Decoded capture response.
+     * @return void
+     */
+    private function recordCapture(ShopOrder $order, array $result): void
+    {
+        $capture = $result['purchase_units'][0]['payments']['captures'][0] ?? [];
+        $captureId = isset($capture['id']) ? (string) $capture['id'] : null;
+        $captured = (float) ($capture['amount']['value'] ?? 0);
+        $capturedCurrency = strtoupper((string) ($capture['amount']['currency_code'] ?? ''));
+
+        $matchesOrder = $captured > 0
+            && abs($captured - (float) $order->total) < 0.01
+            && ($capturedCurrency === '' || $capturedCurrency === strtoupper((string) $order->currency));
+
+        if ($captured > 0) {
+            // Record what PayPal ACTUALLY took, never the order total "to make it match":
+            // a disagreement is a reconciliation problem to surface, not to hide.
+            $order->recordPayment(
+                $captured,
+                $this->plugin->configKey,
+                $captureId,
+                null,
+                $matchesOrder ? null : 'PayPal captured ' . $captured . ' ' . $capturedCurrency
+                    . ' but the order is ' . $order->total . ' ' . $order->currency
+            );
+            if (!$matchesOrder) {
+                gp247_report('PayPal Capture Payment - order ' . $order->id . ': captured ' . $captured . ' ' . $capturedCurrency
+                    . ' differs from order ' . $order->total . ' ' . $order->currency);
             }
+        }
 
-            // Get order data from session
-            $sessionData = session()->all();
-            $orderID = $sessionData['orderID'] ?? null;
-            
-            if (!$orderID) {
-                gp247_report('PayPal Capture Payment - Missing order ID: ' . json_encode($sessionData));
-                return redirect()->route('front.home')->with('error', 'Invalid session or missing order data');
-            }
+        $order->update(['transaction' => $captureId]);
 
-            // Verify order exists and is in pending state
-            $order = \GP247\Shop\Models\ShopOrder::where('id', $orderID)
-                ->first();
-
-            if (!$order) {
-                gp247_report('PayPal Capture Payment - Order not found: ' . $orderID);
-                return redirect()->route('front.home')->with('error', 'Order not found');
-            }
-
-            // Verify the token matches the one we stored
-            if (session('paypalToken') !== $token) {
-                gp247_report('PayPal Capture Payment - Invalid transaction token: ' . $token);
-                return redirect()->route('front.home')->with('error', 'Invalid transaction token');
-            }
-
-            // Capture the payment
-            $result = $this->paypalService->captureOrder($token);
-            
-
-            if ($result['status'] === 'COMPLETED') {
-                //Destroy session
-                session()->forget('paypalToken');
-
-                $capture = $result['purchase_units'][0]['payments']['captures'][0] ?? [];
-                $transaction = $capture['id'] ?? null;
-                $captured = (float) ($capture['amount']['value'] ?? 0);
-                $capturedCurrency = (string) ($capture['amount']['currency_code'] ?? '');
-
-                // WHY record the money and not just a status: until now a successful
-                // capture only set flags, so an order that had genuinely been paid still
-                // carried received = 0 — it never entered revenue and stayed on the debt
-                // list while its label read "paid". recordPayment() is the platform seam
-                // and is idempotent on the capture id, so a replayed callback cannot
-                // double-count (ADR shop_order-payment-ledger, NFR-SEC-payment-idempotency).
-                $matchesOrder = $captured > 0
-                    && abs($captured - (float) $order->total) < 0.01
-                    && ($capturedCurrency === '' || $capturedCurrency === (string) $order->currency);
-
-                if ($captured > 0) {
-                    // Record what PayPal ACTUALLY took, never the order total "to make it
-                    // match": an amount or currency that disagrees with the order is a
-                    // reconciliation problem, and overwriting it would hide the problem
-                    // rather than surface it (F14).
-                    $order->recordPayment(
-                        $captured,
-                        $this->plugin->configKey,
-                        $transaction,
-                        null,
-                        $matchesOrder ? null : 'PayPal captured ' . $captured . ' ' . $capturedCurrency
-                            . ' but the order is ' . $order->total . ' ' . $order->currency
-                    );
-
-                    if (!$matchesOrder) {
-                        gp247_report('PayPal capture amount/currency differs from order ' . $orderID
-                            . ': captured ' . $captured . ' ' . $capturedCurrency
-                            . ', order ' . $order->total . ' ' . $order->currency);
-                    }
-                }
-
-                // `payment_status` is no longer taken from config: it is derived from the
-                // money in the ledger, so a short capture cannot present itself as paid.
-                $order->update([
-                    'transaction' => $transaction,
-                    'status' => gp247_config($this->plugin->configKey.'_order_status_success'),
-                ]);
-
-                //Add history
-                $dataHistory = [
-                    'order_id' => $orderID,
-                    'content' => 'Transaction ' . $transaction,
-                    'customer_id' => $order->customer_id ?? 0,
-                    'order_status_id' => gp247_config($this->plugin->configKey.'_order_status_success'),
-                ];
-                $order->addOrderHistory($dataHistory);
-                return (new \GP247\Shop\Controllers\ShopCartController)->completeOrder();
-            }
-        } catch (\Exception $e) {
-            gp247_report('PayPal Capture Payment - Error: ' . $e->getMessage());
-            return redirect()->route('front.home')->with('error', 'Capture payment for order failed. Please contact to administrator.');
+        $order = ShopOrder::find($order->id);
+        $target = (int) gp247_config($this->plugin->configKey . '_order_status_success');
+        $history = [
+            'content' => 'Transaction ' . $captureId,
+            'customer_id' => $order->customer_id ?: 0,
+        ];
+        if ($target > 0) {
+            $order->changeStatus($target, $history);
+        } else {
+            $order->addOrderHistory($history + ['order_id' => $order->id, 'order_status_id' => $order->status]);
         }
     }
 
     /**
-     * Cancel payment
+     * Cancel URL from PayPal. Only a NEW order without money may be cancelled from here:
+     * this is a plain GET anyone holding the checkout session can open, so it must never
+     * undo a payment or an order the admin already handles.
+     *
+     * @return \Illuminate\Http\RedirectResponse
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-security-hardening
      */
     public function cancelPayment()
     {
-        return (new \GP247\Shop\Controllers\ShopCartController)->cancelOrder();
+        $orderId = session('orderID');
+        $order = $orderId ? ShopOrder::find($orderId) : null;
+
+        if ($order !== null && (float) $order->received > 0) {
+            // Paid after all: finish the checkout instead of undoing it.
+            return (new ShopCartController)->completeOrder();
+        }
+        if ($order !== null && (int) $order->status !== ShopOrderStatus::NEW) {
+            gp247_report('PayPal Cancel - refused for order ' . $order->id . ' in status ' . $order->status);
+            return $this->failHome('error_cannot_cancel');
+        }
+
+        return (new ShopCartController)->cancelOrder();
     }
 
-
     /**
-     * Handle PayPal webhook
+     * PayPal webhook (bare route, see Route.php). Verifies the transmission with PayPal
+     * from the RAW body, answers 400 to anything unverified, 200 once journaled, 500 only
+     * on an unexpected error so PayPal retries.
      *
      * @param Request $request
      * @return \Illuminate\Http\Response
+     *
+     * @aidlc-unit plugin-paypal-express
+     * @aidlc-story US-paypal-express-security-hardening
+     * @aidlc-adr paypal-express_webhook-outside-storefront-middleware
      */
     public function handleWebhook(Request $request)
     {
         try {
-            // Get webhook data
-            $webhookData = $request->all();
-            // gp247_report('PayPal Webhook - Webhook data: ' . json_encode($webhookData));
-            
-            // Log all headers for debugging
-            // $allHeaders = $request->header();
-            // gp247_report('PayPal Webhook - All Headers: ' . json_encode($allHeaders));
-            
-            // Extract PayPal headers
-            $transmissionId = $request->header('paypal-transmission-id');
-            $transmissionTime = $request->header('paypal-transmission-time');
-            $transmissionSig = $request->header('paypal-transmission-sig');
-            $certUrl = $request->header('paypal-cert-url');
-            
-           
-            // Verify webhook signature
-            $paypalService = new PaypalService();
-            $verificationData = [
-                'transmission_id' => $transmissionId,
-                'transmission_time' => $transmissionTime,
-                'event_body' => $request->getContent(),
-                'transmission_sig' => $transmissionSig,
-                'cert_url' => $certUrl,
-                'webhook_id' => paypalexpress_config('webhook_id')
-            ];
-            
-            // Log verification data
-            // gp247_report('PayPal Webhook - Verification Data: ' . json_encode($verificationData));
-            
-            $verificationResult = $paypalService->verifyWebhookSignature($verificationData);
-            
-            if (!$verificationResult || $verificationResult['verification_status'] !== 'SUCCESS') {
-                gp247_report('PayPal Webhook - Invalid signature');
+            $body = (string) $request->getContent();
+            $verified = (new PaypalService)->verifyWebhookSignature([
+                'transmission_id' => $request->header('paypal-transmission-id'),
+                'transmission_time' => $request->header('paypal-transmission-time'),
+                'transmission_sig' => $request->header('paypal-transmission-sig'),
+                'cert_url' => $request->header('paypal-cert-url'),
+                'webhook_id' => paypalexpress_config('webhook_id'),
+                'event_body' => $body,
+            ]);
+            if (!$verified) {
                 return response('Invalid signature', 400);
             }
-            
-            // Process webhook
-            $webhookService = new PaypalWebhookService();
-            $result = $webhookService->processWebhook($webhookData);
-            
-            if ($result) {
-                return response('Webhook processed successfully', 200);
-            } else {
-                return response('Error processing webhook', 500);
+
+            $event = json_decode($body, true);
+            if (!is_array($event)) {
+                return response('Invalid payload', 400);
             }
-        } catch (\Exception $e) {
-            gp247_report('PayPal Webhook - Error: ' . $e->getMessage());
+
+            return (new PaypalWebhookService)->processWebhook($event)
+                ? response('Webhook processed successfully', 200)
+                : response('Error processing webhook', 500);
+        } catch (\Throwable $e) {
+            gp247_report('PayPal Webhook - unexpected error: ' . $e->getMessage());
             return response('Internal server error', 500);
         }
     }
