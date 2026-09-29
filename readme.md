@@ -106,7 +106,7 @@ PAYPAL_WEBHOOK_ID=your_webhook_id
 
 GP247 supports many currencies, but **PayPal only accepts some of them**:
 
-- Check your currency against the [PayPal Supported Currencies](https://developer.paypal.com/docs/api/reference/currency-codes/) list first.
+- Check your currency against the [PayPal Supported Currencies](https://developer.paypal.com/reference/currency-codes) list first.
 - If a customer tries to pay in an unsupported currency, they see an error message.
 - Safest choices: **USD, EUR, GBP, CAD, AUD**.
 

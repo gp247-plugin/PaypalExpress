@@ -106,7 +106,7 @@ PAYPAL_WEBHOOK_ID=your_webhook_id
 
 GP247 hỗ trợ nhiều loại tiền tệ, nhưng **PayPal chỉ chấp nhận một số loại**:
 
-- Kiểm tra loại tiền của bạn trong danh sách [PayPal Supported Currencies](https://developer.paypal.com/docs/api/reference/currency-codes/) trước.
+- Kiểm tra loại tiền của bạn trong danh sách [PayPal Supported Currencies](https://developer.paypal.com/reference/currency-codes) trước.
 - Nếu khách cố thanh toán bằng loại tiền không được hỗ trợ, họ sẽ thấy thông báo lỗi.
 - An toàn nhất: **USD, EUR, GBP, CAD, AUD**.
 
