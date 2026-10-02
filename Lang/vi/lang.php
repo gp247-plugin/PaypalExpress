@@ -40,4 +40,6 @@ return [
     'section_order_status' => 'Trạng thái đơn hàng',
     'section_payment_status' => 'Trạng thái thanh toán (bản cũ)',
     'section_in_use' => 'Đang dùng',
+    'payreq_paid' => 'Cảm ơn bạn — đã nhận được thanh toán.',
+    'payreq_error' => 'Không xác nhận được thanh toán này. Nếu đã bị trừ tiền, vui lòng liên hệ cửa hàng.',
 ];

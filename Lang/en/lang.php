@@ -40,4 +40,6 @@ return [
     'section_order_status' => 'Order status',
     'section_payment_status' => 'Payment status (older versions)',
     'section_in_use' => 'In use',
+    'payreq_paid' => 'Thank you — your payment was received.',
+    'payreq_error' => 'We could not confirm this payment. If you were charged, please contact the store.',
 ];

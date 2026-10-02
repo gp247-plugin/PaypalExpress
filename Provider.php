@@ -21,6 +21,11 @@
          require_once __DIR__.'/function.php';
      }
 
+     // PayPal also collects / refunds the core's payment requests (pay links).
+     if (function_exists('paypalexpress_register_payment_gateway')) {
+         paypalexpress_register_payment_gateway();
+     }
+
      // storeScope = "store" (gp247.json): credentials may differ per store, and the root
      // admin configures each store via the ConfigForm picker
      // (ADR paypal-express_per-store-credentials). WHO may edit is a separate knob from

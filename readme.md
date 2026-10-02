@@ -11,9 +11,9 @@ Accept **PayPal** payments in your GP247/Shop store. Customers pay for their ord
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Version** | 3.1.3 |
+| **Version** | 3.2.0 |
 | **Developer** | GP247 |
-| **Requires** | GP247 Core **3.0.3+** (per-store config + at-rest secret encryption) · package `gp247/shop` |
+| **Requires** | GP247 Core **3.1+** (per-store config, at-rest secret encryption, payment requests) · package `gp247/shop` |
 
 ## What it does
 
@@ -123,6 +123,16 @@ GP247 supports many currencies, but **PayPal only accepts some of them**:
 
 ---
 
+## Payment links (payment requests)
+
+From **3.2.0**, with a `gp247/shop` that has the **Payment requests** screen, PayPal also collects money **outside the cart** (the balance of an order, a receivable, a deposit…):
+
+1. The admin creates a request to collect, clicks **Create payment link** and sends the link to the customer.
+2. The customer opens the link, picks **PayPal** and approves; on the way back the money is captured and recorded on the request **once**.
+3. Refunds: on a collected line, click **Refund via gateway** (needs the money-out permission). Refunds made in PayPal reach the request through the webhook.
+
+PayPal only shows on the link's page when the **store that owns the request** has a Client ID / Secret. Also subscribe the webhook to `PAYMENT.CAPTURE.COMPLETED`, so a payment is still recorded if the customer closes the browser right on the way back.
+
 ## Webhooks
 
 The plugin listens for PayPal notifications at:
@@ -136,6 +146,9 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ---
 
 ## Changelog
+
+### Version 3.2.0
+- PayPal collects and refunds the **payment requests** of `gp247/shop` (payment links `/pay/…`) with the PayPal account of the store that owns the request, and also handles `PAYMENT.CAPTURE.COMPLETED` for them. The order checkout is unchanged; on a shop without that feature the plugin behaves as 3.1.3. Requires GP247 Core 3.1+.
 
 ### Version 3.1.3
 - Admin screen: the fields are grouped into Mode / Sandbox / Live / Webhook / Order status blocks with an "In use" badge on the active environment (needs a GP247 Core that supports config-form sections; older cores show the flat list), every setting now carries a short hint (where to find the Client ID/Secret and Webhook ID, which event to subscribe, what each status does), and the fields keep a fixed order on every server (previously the order depended on the database).

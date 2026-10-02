@@ -11,9 +11,9 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.1.3 |
+| **Phiên bản** | 3.2.0 |
 | **Nhà phát triển** | GP247 |
-| **Yêu cầu** | GP247 Core **3.0.3+** (cấu hình theo cửa hàng + mã hoá bí mật at-rest) · package `gp247/shop` |
+| **Yêu cầu** | GP247 Core **3.1+** (cấu hình theo cửa hàng, mã hoá bí mật at-rest, yêu cầu thanh toán) · package `gp247/shop` |
 
 ## Plugin làm được gì
 
@@ -123,6 +123,16 @@ GP247 hỗ trợ nhiều loại tiền tệ, nhưng **PayPal chỉ chấp nhận
 
 ---
 
+## Link thanh toán (Yêu cầu thanh toán)
+
+Từ **3.2.0**, với `gp247/shop` có màn **Yêu cầu thanh toán**, PayPal còn thu được các khoản **ngoài giỏ hàng** (trả nốt đơn, công nợ, đặt cọc…):
+
+1. Admin tạo yêu cầu thu, bấm **Tạo link thanh toán** và gửi link cho khách.
+2. Khách mở link, chọn **PayPal**, xác nhận trên PayPal; khi quay về, tiền được thu và ghi vào yêu cầu **một lần**.
+3. Hoàn tiền: trên dòng tiền đã thu, bấm **Hoàn qua cổng** (cần quyền chi tiền). Hoàn làm trên PayPal cũng được ghi về yêu cầu qua webhook.
+
+PayPal chỉ hiện trên trang link khi **cửa hàng sở hữu yêu cầu** đã có Client ID / Secret. Nên đăng ký thêm sự kiện webhook `PAYMENT.CAPTURE.COMPLETED` để khoản đã thu vẫn được ghi nếu khách đóng trình duyệt ngay lúc quay về.
+
 ## Webhook
 
 Plugin lắng nghe thông báo từ PayPal tại:
@@ -136,6 +146,9 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.2.0
+- PayPal thu và hoàn tiền cho **Yêu cầu thanh toán** của `gp247/shop` (link thanh toán `/pay/…`), dùng tài khoản PayPal của cửa hàng sở hữu yêu cầu; nhận thêm sự kiện `PAYMENT.CAPTURE.COMPLETED` cho các khoản này. Luồng thanh toán đơn hàng không đổi; shop chưa có tính năng này thì plugin chạy như 3.1.3. Yêu cầu GP247 Core 3.1+.
 
 ### Version 3.1.3
 - Màn cấu hình: các ô được gom thành khối Chế độ / Sandbox / Live / Webhook / Trạng thái đơn, có nhãn "Đang dùng" ở môi trường đang bật (cần GP247 Core hỗ trợ khối cấu hình; core cũ hiện danh sách phẳng), mỗi ô có chú thích ngắn (lấy Client ID/Secret và Webhook ID ở đâu, đăng ký sự kiện nào, từng trạng thái dùng để làm gì), và các ô giữ thứ tự cố định trên mọi máy chủ (trước đây phụ thuộc cơ sở dữ liệu).

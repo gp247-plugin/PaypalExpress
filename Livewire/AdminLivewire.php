@@ -180,7 +180,7 @@ class AdminLivewire extends ConfigForm
                 'title' => $t('section_webhook'),
                 'hint' => $t('section_webhook_hint', [
                     'url' => function_exists('paypalexpress_webhook_url') ? paypalexpress_webhook_url() : url('plugin/paypal-express/webhook'),
-                    'events' => 'PAYMENT.CAPTURE.REFUNDED',
+                    'events' => 'PAYMENT.CAPTURE.REFUNDED, PAYMENT.CAPTURE.COMPLETED',
                 ]),
                 'keys' => [self::PREFIX . 'webhook_id'],
             ],
@@ -208,7 +208,7 @@ class AdminLivewire extends ConfigForm
         $t = fn (string $key, array $replace = []) => (string) trans('Plugins/PaypalExpress::lang.' . $key, $replace);
         $webhook = $t('config_hint_webhook_id', [
             'url' => function_exists('paypalexpress_webhook_url') ? paypalexpress_webhook_url() : url('plugin/paypal-express/webhook'),
-            'events' => 'PAYMENT.CAPTURE.REFUNDED',
+            'events' => 'PAYMENT.CAPTURE.REFUNDED, PAYMENT.CAPTURE.COMPLETED',
         ]);
 
         return [

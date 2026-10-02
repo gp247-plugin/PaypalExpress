@@ -77,6 +77,12 @@ class PaypalWebhookService
                 case 'PAYMENT.CAPTURE.REFUNDED':
                     $this->handlePaymentCaptureRefunded($webhook);
                     break;
+                case 'PAYMENT.CAPTURE.COMPLETED':
+                    // Only a core payment request's capture (custom_id payreq-<id>): an
+                    // order's capture is recorded on its return URL as before.
+                    $resource = is_array($webhook->payload['resource'] ?? null) ? $webhook->payload['resource'] : [];
+                    (new PaypalPaymentRequestFulfillment)->captureCompleted($resource);
+                    break;
                 default:
                     // Not an event this plugin acts on; the capture itself is recorded on the return URL.
                     break;
@@ -111,6 +117,9 @@ class PaypalWebhookService
         }
 
         $order = ShopOrder::where('transaction', $captureId)->first();
+        if (!$order && (new PaypalPaymentRequestFulfillment)->captureRefunded($resource, $captureId) !== null) {
+            return; // a refund of a core payment request's capture
+        }
         if (!$order) {
             gp247_report('PayPal Webhook - event ' . ($webhook->event_id ?? '?') . ': no order for capture ' . $captureId);
             return;

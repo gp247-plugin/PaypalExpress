@@ -3,6 +3,7 @@
 namespace App\GP247\Plugins\PaypalExpress\Controllers;
 
 use App\GP247\Plugins\PaypalExpress\AppConfig;
+use App\GP247\Plugins\PaypalExpress\Services\PaypalPaymentRequestFulfillment;
 use App\GP247\Plugins\PaypalExpress\Services\PaypalService;
 use App\GP247\Plugins\PaypalExpress\Services\PaypalWebhookService;
 use GP247\Front\Controllers\RootFrontController;
@@ -19,6 +20,7 @@ use Illuminate\Http\Request;
  * @aidlc-unit plugin-paypal-express
  * @aidlc-story US-paypal-record-payment-into-ledger
  * @aidlc-story US-paypal-express-security-hardening
+ * @aidlc-story US-paypal-express-payment-request
  * @aidlc-adr paypal-express_webhook-outside-storefront-middleware
  */
 class FrontController extends RootFrontController
@@ -244,6 +246,62 @@ class FrontController extends RootFrontController
         }
 
         return (new ShopCartController)->cancelOrder();
+    }
+
+    /**
+     * Payer is back from approving a core payment request. The `token` (PayPal order id)
+     * is untrusted: it must be the order this site opened for a request of THIS
+     * storefront's store (its `gateway_ref`). A request already recorded for that order is
+     * not captured again; otherwise the order is captured with the request's own PayPal
+     * account and the capture recorded, then the payer goes back to the link's page.
+     *
+     * @return \Illuminate\Http\RedirectResponse
+     *
+     * @aidlc-story US-paypal-express-payment-request
+     */
+    public function paymentRequestReturn()
+    {
+        $token = (string) request()->input('token', '');
+        $storeId = (string) config('app.storeId', GP247_STORE_ID_ROOT);
+        if (!PaypalPaymentRequestFulfillment::supported() || !preg_match('/^[A-Za-z0-9\-_]{1,64}$/', $token)) {
+            return $this->failHome('payreq_error');
+        }
+
+        $paymentRequest = \GP247\Shop\Payment\Models\PaymentRequest::where('gateway', 'PaypalExpress')
+            ->where('gateway_ref', $token)
+            ->first();
+        if ($paymentRequest === null || (string) $paymentRequest->store_id !== $storeId) {
+            gp247_report('PayPal payment request return - token does not match a request of store ' . $storeId);
+            return $this->failHome('payreq_error');
+        }
+        $back = app(\GP247\Shop\Payment\PaymentRequestService::class)->publicUrl($paymentRequest);
+        $target = $back !== null ? redirect()->away($back) : redirect(gp247_route_front('front.home'));
+
+        $alreadyRecorded = \GP247\Shop\Payment\Models\PaymentMovement::where('request_id', $paymentRequest->id)
+            ->where('gateway', 'PaypalExpress')
+            ->where('reference', $token)
+            ->exists();
+        if ($alreadyRecorded) {
+            return $target->with('success', $this->lang('payreq_paid'));
+        }
+
+        try {
+            $result = (new PaypalService($paymentRequest->store_id))->captureOrder($token);
+            $capture = $result['purchase_units'][0]['payments']['captures'][0] ?? [];
+            $movement = strtoupper((string) ($result['status'] ?? '')) === 'COMPLETED'
+                ? (new PaypalPaymentRequestFulfillment)->recordCapture($paymentRequest, is_array($capture) ? $capture : [], $token)
+                : null;
+        } catch (\Throwable $e) {
+            gp247_report('PayPal payment request return - request ' . $paymentRequest->id . ': ' . $e->getMessage());
+            return $target->with('error', $this->lang('payreq_error'));
+        }
+
+        if ($movement === null) {
+            gp247_report('PayPal payment request return - request ' . $paymentRequest->id . ': capture ' . ($result['status'] ?? 'unknown') . ' did not match the request');
+            return $target->with('error', $this->lang('payreq_error'));
+        }
+
+        return $target->with('success', $this->lang('payreq_paid'));
     }
 
     /**

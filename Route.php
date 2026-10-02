@@ -22,6 +22,11 @@ if(gp247_extension_check_active($config['configGroup'], $config['configKey'])) {
             ->name('paypal-express.capture_payment');
         Route::get('cancel-payment', 'FrontController@cancelPayment')
             ->name('paypal-express.cancel_payment');
+        // Back from approving a core payment request (pay link): capture, record
+        // idempotently, then back to the link's page.
+        Route::get('payment-request/return', 'FrontController@paymentRequestReturn')
+            ->middleware('throttle:30,1')
+            ->name('paypal-express.payment_request.return');
     }
 );
 

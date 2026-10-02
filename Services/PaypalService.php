@@ -29,20 +29,93 @@ class PaypalService
     private string $baseUrl;
     private ?string $accessToken = null;
 
-    public function __construct()
+    /**
+     * @param string|int|null $storeId Use this store's PayPal account instead of the effective
+     *                                 store's (a core payment request is served with its own store's).
+     */
+    public function __construct($storeId = null)
     {
         // WHY paypalexpress_config(): credentials are resolved per effective store
         // (multi-store: the store's own PayPal account; marketplace: the platform's, via
         // GLOBAL fallback), decrypted at read (ADR paypal-express_per-store-credentials).
-        if (paypalexpress_config('sandbox')) {
-            $this->clientId = (string) paypalexpress_config('client_id_sandbox');
-            $this->clientSecret = (string) paypalexpress_config('client_secret_sandbox');
+        if (paypalexpress_config('sandbox', null, $storeId)) {
+            $this->clientId = (string) paypalexpress_config('client_id_sandbox', null, $storeId);
+            $this->clientSecret = (string) paypalexpress_config('client_secret_sandbox', null, $storeId);
             $this->baseUrl = 'https://api-m.sandbox.paypal.com';
         } else {
-            $this->clientId = (string) paypalexpress_config('client_id_live');
-            $this->clientSecret = (string) paypalexpress_config('client_secret_live');
+            $this->clientId = (string) paypalexpress_config('client_id_live', null, $storeId);
+            $this->clientSecret = (string) paypalexpress_config('client_secret_live', null, $storeId);
             $this->baseUrl = 'https://api-m.paypal.com';
         }
+    }
+
+    /**
+     * Whether credentials exist for the current mode.
+     *
+     * @return bool
+     */
+    public function configured(): bool
+    {
+        return trim($this->clientId) !== '' && trim($this->clientSecret) !== '';
+    }
+
+    /**
+     * Create a PayPal order (intent CAPTURE) for what is still due on a core payment request.
+     *
+     * @param \GP247\Shop\Payment\Models\PaymentRequest $request
+     * @param string $returnUrl
+     * @param string $cancelUrl
+     * @return array<string, mixed> Decoded PayPal order (id, status, links…).
+     * @throws \RuntimeException
+     *
+     * @aidlc-story US-paypal-express-payment-request
+     */
+    public function createRequestOrder($request, string $returnUrl, string $cancelUrl): array
+    {
+        $currency = strtoupper((string) $request->currency);
+        $reference = 'payreq-' . $request->id;
+        $description = trim((string) $request->description) !== ''
+            ? mb_substr((string) $request->description, 0, 127)
+            : 'Payment request #' . $request->id;
+
+        return $this->post('/v2/checkout/orders', [
+            'intent' => 'CAPTURE',
+            'purchase_units' => [[
+                'reference_id' => $reference,
+                'custom_id' => $reference,
+                'description' => $description,
+                'amount' => ['currency_code' => $currency, 'value' => $this->amount($request->outstanding(), $currency)],
+            ]],
+            'application_context' => [
+                'return_url' => $returnUrl,
+                'cancel_url' => $cancelUrl,
+                'user_action' => 'PAY_NOW',
+            ],
+        ], 'create order');
+    }
+
+    /**
+     * Refund part or all of a capture.
+     *
+     * @param string $captureId
+     * @param float  $amount
+     * @param string $currency
+     * @param string $requestId PayPal-Request-Id: the same id returns the same refund.
+     * @return array<string, mixed> Decoded refund (id, status…).
+     * @throws \RuntimeException
+     *
+     * @aidlc-story US-paypal-express-payment-request
+     */
+    public function refundCapture(string $captureId, float $amount, string $currency, string $requestId): array
+    {
+        if (!preg_match('/^[A-Za-z0-9\-_]{1,64}$/', $captureId)) {
+            throw new \RuntimeException('PayPal refund refused: malformed capture id');
+        }
+        $currency = strtoupper($currency);
+
+        return $this->post('/v2/payments/captures/' . $captureId . '/refund', [
+            'amount' => ['value' => $this->amount($amount, $currency), 'currency_code' => $currency],
+        ], 'refund', ['PayPal-Request-Id' => $requestId]);
     }
 
     /**
@@ -207,13 +280,14 @@ class PaypalService
      * @param string $path
      * @param array<string, mixed> $payload
      * @param string $step Human label for error messages (no data).
+     * @param array<string, string> $headers Extra headers (e.g. PayPal-Request-Id).
      * @return array<string, mixed>
      * @throws \RuntimeException
      */
-    private function post(string $path, array $payload, string $step): array
+    private function post(string $path, array $payload, string $step, array $headers = []): array
     {
         try {
-            $data = $this->api()->post($path, $payload)->throw()->json();
+            $data = $this->api()->withHeaders($headers)->post($path, $payload)->throw()->json();
         } catch (RequestException $e) {
             throw new \RuntimeException('PayPal ' . $step . ' failed (HTTP ' . $e->response->status() . ')', 0, $e);
         } catch (\RuntimeException $e) {
