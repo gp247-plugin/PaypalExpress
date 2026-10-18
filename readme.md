@@ -11,7 +11,7 @@ Accept **PayPal** payments in your GP247/Shop store. Customers pay for their ord
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Version** | 3.2.0 |
+| **Version** | 3.2.1 |
 | **Developer** | GP247 |
 | **Requires** | GP247 Core **3.1+** (per-store config, at-rest secret encryption, payment requests) · package `gp247/shop` |
 
@@ -146,6 +146,9 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ---
 
 ## Changelog
+
+### Version 3.2.1
+- The settings screen opens with a **Check before use** box: what still stops shoppers from paying with PayPal (payment step off at checkout, PayPal off for the store, missing Client ID / Client Secret of the mode in use, active currencies PayPal does not accept, missing Webhook ID, a webhook URL PayPal cannot reach) and a reminder while Sandbox mode is on — each with where to fix it. Needs a GP247 Core that has this box; older cores show the screen as before.
 
 ### Version 3.2.0
 - PayPal collects and refunds the **payment requests** of `gp247/shop` (payment links `/pay/…`) with the PayPal account of the store that owns the request, and also handles `PAYMENT.CAPTURE.COMPLETED` for them. The order checkout is unchanged; on a shop without that feature the plugin behaves as 3.1.3. Requires GP247 Core 3.1+.

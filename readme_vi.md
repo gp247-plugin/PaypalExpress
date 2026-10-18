@@ -11,7 +11,7 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.2.0 |
+| **Phiên bản** | 3.2.1 |
 | **Nhà phát triển** | GP247 |
 | **Yêu cầu** | GP247 Core **3.1+** (cấu hình theo cửa hàng, mã hoá bí mật at-rest, yêu cầu thanh toán) · package `gp247/shop` |
 
@@ -146,6 +146,9 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.2.1
+- Màn cấu hình có khung **Kiểm tra trước khi dùng**: những gì còn khiến khách chưa trả được bằng PayPal (bước thanh toán đang tắt ở checkout, PayPal chưa bật cho cửa hàng, thiếu Client ID / Client Secret của chế độ đang dùng, đồng tiền đang bật mà PayPal không nhận, thiếu Webhook ID, URL webhook PayPal không gọi tới được) và lời nhắc khi đang ở Sandbox — kèm chỗ sửa. Cần GP247 Core có khung này; core cũ hiển thị màn như trước.
 
 ### Version 3.2.0
 - PayPal thu và hoàn tiền cho **Yêu cầu thanh toán** của `gp247/shop` (link thanh toán `/pay/…`), dùng tài khoản PayPal của cửa hàng sở hữu yêu cầu; nhận thêm sự kiện `PAYMENT.CAPTURE.COMPLETED` cho các khoản này. Luồng thanh toán đơn hàng không đổi; shop chưa có tính năng này thì plugin chạy như 3.1.3. Yêu cầu GP247 Core 3.1+.
