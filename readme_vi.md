@@ -1,6 +1,6 @@
 # Plugin PaypalExpress
 
-> 🌐 [English](readme.md) · **Tiếng Việt**
+> 🌐 **Ngôn ngữ:** 🇻🇳 Tiếng Việt (hiện tại) · [🇬🇧 English](./readme.md) · [🇯🇵 日本語](./readme_ja.md)
 
 Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hàng trả tiền đơn hàng trực tiếp bằng tài khoản PayPal — nhanh, an toàn, và không phải rời khỏi website.
 
@@ -11,7 +11,7 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.2.1 |
+| **Phiên bản** | 3.2.2 |
 | **Nhà phát triển** | GP247 |
 | **Yêu cầu** | GP247 Core **3.1+** (cấu hình theo cửa hàng, mã hoá bí mật at-rest, yêu cầu thanh toán) · package `gp247/shop` |
 
@@ -146,6 +146,9 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.2.2
+- Thêm bản dịch tiếng Nhật (日本語) cho các màn của plugin.
 
 ### Version 3.2.1
 - Màn cấu hình có khung **Kiểm tra trước khi dùng**: những gì còn khiến khách chưa trả được bằng PayPal (bước thanh toán đang tắt ở checkout, PayPal chưa bật cho cửa hàng, thiếu Client ID / Client Secret của chế độ đang dùng, đồng tiền đang bật mà PayPal không nhận, thiếu Webhook ID, URL webhook PayPal không gọi tới được) và lời nhắc khi đang ở Sandbox — kèm chỗ sửa. Cần GP247 Core có khung này; core cũ hiển thị màn như trước.
