@@ -11,7 +11,7 @@ Accept **PayPal** payments in your GP247/Shop store. Customers pay for their ord
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Version** | 3.2.2 |
+| **Version** | 3.2.3 |
 | **Developer** | GP247 |
 | **Requires** | GP247 Core **3.1+** (per-store config, at-rest secret encryption, payment requests) · package `gp247/shop` |
 
@@ -146,6 +146,9 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ---
 
 ## Changelog
+
+### Version 3.2.3
+- After a PayPal payment (return, capture, cancel and webhook), the order is finished or cancelled through the site's own `ShopCartController` when the site overrides it in `app/GP247/Shop/Controllers/` — custom order-completion code is no longer skipped. Needs a GP247 Core with `gp247_namespace()` (3.1 or newer).
 
 ### Version 3.2.2
 - Japanese (日本語) translation of the plugin screens.

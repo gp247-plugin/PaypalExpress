@@ -11,7 +11,7 @@ GP247/Shop のストアで **PayPal** による決済を受け付けます。お
 | | |
 | --- | --- |
 | **プラグイン** | PaypalExpress |
-| **バージョン** | 3.2.2 |
+| **バージョン** | 3.2.3 |
 | **開発元** | GP247 |
 | **要件** | GP247 Core **3.1+**（ストア別設定、シークレットの保存時暗号化、支払いリクエスト）· パッケージ `gp247/shop` |
 
@@ -146,6 +146,9 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.2.3
+- PayPal 決済後（戻り・キャプチャ・キャンセル・Webhook）の注文完了／キャンセルは、サイトが `app/GP247/Shop/Controllers/` で `ShopCartController` を上書きしている場合、そのクラスを通して処理されるようになりました。独自の注文完了処理がスキップされなくなります。`gp247_namespace()` を備えた GP247 Core（3.1 以降）が必要です。
 
 ### Version 3.2.2
 - プラグイン画面の日本語（日本語）翻訳を追加しました。

@@ -11,7 +11,7 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.2.2 |
+| **Phiên bản** | 3.2.3 |
 | **Nhà phát triển** | GP247 |
 | **Yêu cầu** | GP247 Core **3.1+** (cấu hình theo cửa hàng, mã hoá bí mật at-rest, yêu cầu thanh toán) · package `gp247/shop` |
 
@@ -146,6 +146,9 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.2.3
+- Sau khi thanh toán PayPal (quay về, capture, huỷ và webhook), đơn được hoàn tất hoặc huỷ qua `ShopCartController` của chính site nếu site ghi đè nó trong `app/GP247/Shop/Controllers/` — code hoàn tất đơn tuỳ biến không còn bị bỏ qua. Cần GP247 Core có `gp247_namespace()` (3.1 trở lên).
 
 ### Version 3.2.2
 - Thêm bản dịch tiếng Nhật (日本語) cho các màn của plugin.
