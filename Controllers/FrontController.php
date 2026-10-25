@@ -61,6 +61,19 @@ class FrontController extends RootFrontController
     }
 
     /**
+     * The shop cart controller that finishes or cancels the order — the site's own
+     * override (app/GP247/Shop/Controllers/ShopCartController.php) when one exists.
+     *
+     * @return ShopCartController
+     */
+    private function cartController(): ShopCartController
+    {
+        $class = gp247_namespace(ShopCartController::class);
+
+        return new $class();
+    }
+
+    /**
      * Called by the shop right after the order is saved (session `orderID`): create the
      * PayPal order from the SAVED order and send the shopper to PayPal to approve it.
      *
@@ -143,7 +156,7 @@ class FrontController extends RootFrontController
             // Already settled (webhook, admin, or a replayed return URL): just finish.
             gp247_report('PayPal Capture Payment - order ' . $order->id . ' already paid or locked, capture skipped');
             session()->forget('paypalToken');
-            return (new ShopCartController)->completeOrder();
+            return $this->cartController()->completeOrder();
         }
 
         try {
@@ -162,7 +175,7 @@ class FrontController extends RootFrontController
         session()->forget('paypalToken');
         $this->recordCapture($order, $result);
 
-        return (new ShopCartController)->completeOrder();
+        return $this->cartController()->completeOrder();
     }
 
     /**
@@ -238,14 +251,14 @@ class FrontController extends RootFrontController
 
         if ($order !== null && (float) $order->received > 0) {
             // Paid after all: finish the checkout instead of undoing it.
-            return (new ShopCartController)->completeOrder();
+            return $this->cartController()->completeOrder();
         }
         if ($order !== null && (int) $order->status !== ShopOrderStatus::NEW) {
             gp247_report('PayPal Cancel - refused for order ' . $order->id . ' in status ' . $order->status);
             return $this->failHome('error_cannot_cancel');
         }
 
-        return (new ShopCartController)->cancelOrder();
+        return $this->cartController()->cancelOrder();
     }
 
     /**
