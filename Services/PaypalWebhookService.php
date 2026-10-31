@@ -83,6 +83,12 @@ class PaypalWebhookService
                     $resource = is_array($webhook->payload['resource'] ?? null) ? $webhook->payload['resource'] : [];
                     (new PaypalPaymentRequestFulfillment)->captureCompleted($resource);
                     break;
+                case 'CHECKOUT.ORDER.APPROVED':
+                    // A core payment request's order: capture it here too (an app payer may never
+                    // load the return page). A website order is still captured on its return URL.
+                    $resource = is_array($webhook->payload['resource'] ?? null) ? $webhook->payload['resource'] : [];
+                    (new PaypalPaymentRequestFulfillment)->orderApproved($resource);
+                    break;
                 default:
                     // Not an event this plugin acts on; the capture itself is recorded on the return URL.
                     break;

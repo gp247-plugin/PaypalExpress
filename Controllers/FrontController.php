@@ -283,34 +283,22 @@ class FrontController extends RootFrontController
         $paymentRequest = \GP247\Shop\Payment\Models\PaymentRequest::where('gateway', 'PaypalExpress')
             ->where('gateway_ref', $token)
             ->first();
-        if ($paymentRequest === null || (string) $paymentRequest->store_id !== $storeId) {
-            gp247_report('PayPal payment request return - token does not match a request of store ' . $storeId);
+        if ($paymentRequest === null || !$this->servedHere($paymentRequest, $storeId)) {
+            gp247_report('PayPal payment request return - token does not match a request served by store ' . $storeId);
             return $this->failHome('payreq_error');
         }
         $back = app(\GP247\Shop\Payment\PaymentRequestService::class)->publicUrl($paymentRequest);
         $target = $back !== null ? redirect()->away($back) : redirect(gp247_route_front('front.home'));
 
-        $alreadyRecorded = \GP247\Shop\Payment\Models\PaymentMovement::where('request_id', $paymentRequest->id)
-            ->where('gateway', 'PaypalExpress')
-            ->where('reference', $token)
-            ->exists();
-        if ($alreadyRecorded) {
-            return $target->with('success', $this->lang('payreq_paid'));
-        }
-
         try {
-            $result = (new PaypalService($paymentRequest->store_id))->captureOrder($token);
-            $capture = $result['purchase_units'][0]['payments']['captures'][0] ?? [];
-            $movement = strtoupper((string) ($result['status'] ?? '')) === 'COMPLETED'
-                ? (new PaypalPaymentRequestFulfillment)->recordCapture($paymentRequest, is_array($capture) ? $capture : [], $token)
-                : null;
+            $movement = (new PaypalPaymentRequestFulfillment)->captureApprovedOrder($paymentRequest, $token);
         } catch (\Throwable $e) {
             gp247_report('PayPal payment request return - request ' . $paymentRequest->id . ': ' . $e->getMessage());
             return $target->with('error', $this->lang('payreq_error'));
         }
 
         if ($movement === null) {
-            gp247_report('PayPal payment request return - request ' . $paymentRequest->id . ': capture ' . ($result['status'] ?? 'unknown') . ' did not match the request');
+            gp247_report('PayPal payment request return - request ' . $paymentRequest->id . ': the capture did not complete for this request');
             return $target->with('error', $this->lang('payreq_error'));
         }
 
@@ -357,5 +345,23 @@ class FrontController extends RootFrontController
             gp247_report('PayPal Webhook - unexpected error: ' . $e->getMessage());
             return response('Internal server error', 500);
         }
+    }
+
+    /**
+     * Whether this domain (store $storeId) serves the payment request: its own store, or
+     * ROOT for a store without a domain (shop servingStoreId; same store check on an older shop).
+     *
+     * @param \GP247\Shop\Payment\Models\PaymentRequest $paymentRequest
+     * @param string                                     $storeId Store of this domain.
+     * @return bool
+     */
+    private function servedHere($paymentRequest, string $storeId): bool
+    {
+        $owner = (string) $paymentRequest->store_id;
+        $served = method_exists(\GP247\Shop\Payment\PaymentRequestService::class, 'servingStoreId')
+            ? \GP247\Shop\Payment\PaymentRequestService::servingStoreId($owner)
+            : $owner;
+
+        return $served === $storeId;
     }
 }

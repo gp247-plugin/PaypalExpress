@@ -11,7 +11,7 @@ Nhận thanh toán **PayPal** cho cửa hàng GP247/Shop của bạn. Khách hà
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Phiên bản** | 3.2.3 |
+| **Phiên bản** | 3.2.4 |
 | **Nhà phát triển** | GP247 |
 | **Yêu cầu** | GP247 Core **3.1+** (cấu hình theo cửa hàng, mã hoá bí mật at-rest, yêu cầu thanh toán) · package `gp247/shop` |
 
@@ -131,7 +131,7 @@ Từ **3.2.0**, với `gp247/shop` có màn **Yêu cầu thanh toán**, PayPal c
 2. Khách mở link, chọn **PayPal**, xác nhận trên PayPal; khi quay về, tiền được thu và ghi vào yêu cầu **một lần**.
 3. Hoàn tiền: trên dòng tiền đã thu, bấm **Hoàn qua cổng** (cần quyền chi tiền). Hoàn làm trên PayPal cũng được ghi về yêu cầu qua webhook.
 
-PayPal chỉ hiện trên trang link khi **cửa hàng sở hữu yêu cầu** đã có Client ID / Secret. Nên đăng ký thêm sự kiện webhook `PAYMENT.CAPTURE.COMPLETED` để khoản đã thu vẫn được ghi nếu khách đóng trình duyệt ngay lúc quay về.
+PayPal chỉ hiện trên trang link khi **cửa hàng sở hữu yêu cầu** đã có Client ID / Secret. Nên đăng ký thêm sự kiện webhook `PAYMENT.CAPTURE.COMPLETED` để khoản đã thu vẫn được ghi nếu khách đóng trình duyệt ngay lúc quay về, và `CHECKOUT.ORDER.APPROVED` (từ 3.2.4) để plugin thu tiền ngay khi khách duyệt — kể cả khi ứng dụng không mở lại trang quay về.
 
 ## Webhook
 
@@ -146,6 +146,11 @@ https://your-domain.com/plugin/paypal-express/webhook
 ---
 
 ## Changelog
+
+### Version 3.2.4
+- Đơn đặt qua REST API (gp247/shop 3.5.1) trả qua PayPal chuyển sang trạng thái "thành công" / "đã hoàn" như đơn web.
+- Trang quay về nhận yêu cầu thanh toán của gian hàng không có tên miền riêng (sàn nhiều người bán một tên miền) khi mở trên tên miền chính.
+- Webhook `CHECKOUT.ORDER.APPROVED` của yêu cầu thanh toán: thu tiền phía máy chủ, ghi một lần (trùng với trang quay về không ghi đôi).
 
 ### Version 3.2.3
 - Sau khi thanh toán PayPal (quay về, capture, huỷ và webhook), đơn được hoàn tất hoặc huỷ qua `ShopCartController` của chính site nếu site ghi đè nó trong `app/GP247/Shop/Controllers/` — code hoàn tất đơn tuỳ biến không còn bị bỏ qua. Cần GP247 Core có `gp247_namespace()` (3.1 trở lên).

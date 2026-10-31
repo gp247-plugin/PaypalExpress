@@ -95,6 +95,30 @@ class PaypalPaymentRequestGateway implements PaymentGateway
      * @return RefundResult
      * @throws \RuntimeException
      */
+    /**
+     * Order status of a checkout order (REST API) once paid in full / fully refunded: the
+     * statuses this plugin's website flow sets (shop OrderStatusAfterPayment; declared
+     * without `implements` so the plugin still loads on a shop that predates it). Unset
+     * (0) ⇒ null: the status stays, as on the website.
+     *
+     * @param string $event   'paid' | 'refunded'.
+     * @param string $storeId Store of the payment request.
+     * @return int|null
+     *
+     * @aidlc-story US-paypal-express-payment-request
+     */
+    public function orderStatusAfter(string $event, string $storeId): ?int
+    {
+        $key = match ($event) {
+            'paid' => '_order_status_success',
+            'refunded' => '_order_status_refunded',
+            default => null,
+        };
+        $status = $key === null ? 0 : (int) gp247_config(self::KEY . $key, $storeId);
+
+        return $status > 0 ? $status : null;
+    }
+
     public function refund(PaymentRequest $request, PaymentMovement $original, float $amount, ?string $idempotencyKey = null): RefundResult
     {
         $minor = (int) round($amount * (10 ** PaymentCurrency::precision((string) $request->currency)));

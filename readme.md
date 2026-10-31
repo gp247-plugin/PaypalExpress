@@ -11,7 +11,7 @@ Accept **PayPal** payments in your GP247/Shop store. Customers pay for their ord
 | | |
 | --- | --- |
 | **Plugin** | PaypalExpress |
-| **Version** | 3.2.3 |
+| **Version** | 3.2.4 |
 | **Developer** | GP247 |
 | **Requires** | GP247 Core **3.1+** (per-store config, at-rest secret encryption, payment requests) · package `gp247/shop` |
 
@@ -131,7 +131,7 @@ From **3.2.0**, with a `gp247/shop` that has the **Payment requests** screen, Pa
 2. The customer opens the link, picks **PayPal** and approves; on the way back the money is captured and recorded on the request **once**.
 3. Refunds: on a collected line, click **Refund via gateway** (needs the money-out permission). Refunds made in PayPal reach the request through the webhook.
 
-PayPal only shows on the link's page when the **store that owns the request** has a Client ID / Secret. Also subscribe the webhook to `PAYMENT.CAPTURE.COMPLETED`, so a payment is still recorded if the customer closes the browser right on the way back.
+PayPal only shows on the link's page when the **store that owns the request** has a Client ID / Secret. Also subscribe the webhook to `PAYMENT.CAPTURE.COMPLETED`, so a payment is still recorded if the customer closes the browser right on the way back, and to `CHECKOUT.ORDER.APPROVED` (since 3.2.4) so the plugin captures as soon as the payer approves — even when an app never reopens the return page.
 
 ## Webhooks
 
@@ -146,6 +146,11 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 ---
 
 ## Changelog
+
+### Version 3.2.4
+- An order placed through the REST API (gp247/shop 3.5.1) and paid with PayPal moves to the "success" / "refunded" status like a website order.
+- The return page accepts a payment request of a store without its own domain (single-domain multi-vendor marketplace) when opened on the main domain.
+- `CHECKOUT.ORDER.APPROVED` webhook of a payment request: captured on the server, recorded once (racing the return page never records twice).
 
 ### Version 3.2.3
 - After a PayPal payment (return, capture, cancel and webhook), the order is finished or cancelled through the site's own `ShopCartController` when the site overrides it in `app/GP247/Shop/Controllers/` — custom order-completion code is no longer skipped. Needs a GP247 Core with `gp247_namespace()` (3.1 or newer).

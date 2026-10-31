@@ -78,6 +78,58 @@ class PaypalPaymentRequestFulfillment
     }
 
     /**
+     * Capture an approved PayPal order of the request and record it — once: a capture
+     * already recorded (return page and webhook racing) is handed back as it is.
+     *
+     * @param PaymentRequest $request
+     * @param string         $paypalOrderId The approved PayPal order (gateway_ref of the request).
+     * @return PaymentMovement|null Null when PayPal did not complete the capture for this request.
+     * @throws \Throwable When PayPal cannot be reached or refuses (the caller reports it).
+     *
+     * @aidlc-story US-paypal-express-payment-request
+     */
+    public function captureApprovedOrder(PaymentRequest $request, string $paypalOrderId): ?PaymentMovement
+    {
+        $recorded = PaymentMovement::where('request_id', $request->id)
+            ->where('gateway', PaypalPaymentRequestGateway::KEY)
+            ->where('reference', $paypalOrderId)
+            ->first();
+        if ($recorded !== null) {
+            return $recorded;
+        }
+        $result = (new PaypalService($request->store_id))->captureOrder($paypalOrderId);
+        $capture = $result['purchase_units'][0]['payments']['captures'][0] ?? [];
+
+        return strtoupper((string) ($result['status'] ?? '')) === 'COMPLETED'
+            ? $this->recordCapture($request, is_array($capture) ? $capture : [], $paypalOrderId)
+            : null;
+    }
+
+    /**
+     * CHECKOUT.ORDER.APPROVED for a payment request: capture on the server, so an app order
+     * does not depend on the payer's webview loading the return page. An approved order of
+     * the website checkout (not a payment request) is left to its return URL.
+     *
+     * @param array<string, mixed> $order Webhook resource (PayPal order).
+     * @return bool|null Null when the order is not a payment request's.
+     *
+     * @aidlc-story US-paypal-express-payment-request
+     */
+    public function orderApproved(array $order): ?bool
+    {
+        $id = (string) ($order['id'] ?? '');
+        if ($id === '' || !self::supported()) {
+            return null;
+        }
+        $request = PaymentRequest::where('gateway', PaypalPaymentRequestGateway::KEY)->where('gateway_ref', $id)->first();
+        if ($request === null) {
+            return null;
+        }
+
+        return $this->captureApprovedOrder($request, $id) !== null;
+    }
+
+    /**
      * PAYMENT.CAPTURE.COMPLETED for a payment request (the return page may have missed it).
      *
      * @param array<string, mixed> $capture Webhook resource.
