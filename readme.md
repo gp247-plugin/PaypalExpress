@@ -62,7 +62,7 @@ php artisan gp247:ext-install --type=plugin --key=PaypalExpress
 - The command refuses a plugin that is already installed. To move to a newer version, run `php artisan gp247:ext-update --type=plugin --key=PaypalExpress`.
 - Append `--json` to get machine-readable output (for scripts/CI).
 - The **Configuration** section below still applies after installing: the plugin is enabled, but it can only take payments once you enter Sandbox mode, Client ID / Secret and Webhook ID in the admin.
-- More: [Installing Plugins & Templates](https://github.com/gp247net/gp247-docs/blob/main/extension/install-extension.md) · [Command reference](https://github.com/gp247net/gp247-docs/blob/main/system/command-line-reference.md).
+- More: [Installing Plugins & Templates](https://github.com/gp247net/gp247-docs/blob/main/extension/install-extension.md) · [Command reference](https://github.com/gp247net/gp247-docs/blob/main/cli/cli-extensions.md).
 
 ---
 

@@ -62,7 +62,7 @@ php artisan gp247:ext-install --type=plugin --key=PaypalExpress
 - プラグインがすでにインストールされている場合、コマンドは実行を拒否します。新しいバージョンに上げるには `php artisan gp247:ext-update --type=plugin --key=PaypalExpress` を実行してください。
 - コマンドの末尾に `--json` を付けると、機械で読み取れる形式で結果を受け取れます（スクリプト／CI 用）。
 - 下記の**設定**はインストール後も必要です。プラグインは有効になりますが、管理画面でサンドボックスモード、Client ID / Secret、Webhook ID を入力して初めて決済を受け付けられます。
-- 詳細：[プラグイン・テンプレートのインストールガイド](https://github.com/gp247net/gp247-docs/blob/main/extension/install-extension.md) · [コマンドリファレンス](https://github.com/gp247net/gp247-docs/blob/main/system/command-line-reference.md)。
+- 詳細：[プラグイン・テンプレートのインストールガイド](https://github.com/gp247net/gp247-docs/blob/main/extension/install-extension.md) · [コマンドリファレンス](https://github.com/gp247net/gp247-docs/blob/main/cli/cli-extensions_ja.md)。
 
 ---
 
