@@ -189,4 +189,4 @@ https://your-domain.com/plugin/paypal-express/webhook
 
 ---
 
-<sub>**GP247** が開発 · 各ライセンスに基づいて配布されています。</sub>
+<sub>**GP247** が開発 · [MIT ライセンス](./LICENSE) に基づく無料のオープンソースです。</sub>

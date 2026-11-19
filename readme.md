@@ -189,4 +189,4 @@ Register this URL in your **PayPal Developer** account, then paste the **Webhook
 
 ---
 
-<sub>Developed by **GP247** · distributed under its respective license.</sub>
+<sub>Developed by **GP247** · free and open source under the [MIT License](./LICENSE).</sub>

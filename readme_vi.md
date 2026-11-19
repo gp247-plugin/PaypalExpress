@@ -189,4 +189,4 @@ https://your-domain.com/plugin/paypal-express/webhook
 
 ---
 
-<sub>Được phát triển bởi **GP247** · phân phối theo giấy phép tương ứng.</sub>
+<sub>Được phát triển bởi **GP247** · miễn phí, mã nguồn mở theo [giấy phép MIT](./LICENSE).</sub>
